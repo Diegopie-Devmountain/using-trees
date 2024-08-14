@@ -1,0 +1,31 @@
+/* Tree.css */
+.tree-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+
+.tree-node {
+  position: absolute;
+  text-align: center;
+}
+
+.node-button {
+  background-color: #6fa8dc;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.node-button:hover {
+  background-color: #3d85c6;
+}
+
+.line {
+  position: absolute;
+  border-left: 2px solid black;
+  border-bottom: 2px solid black;
+  transform-origin: top left;
+}
