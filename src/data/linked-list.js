@@ -76,4 +76,8 @@ export class Queue extends LinkedList {
     this.items = this.toArray();
     return removedNode;
   }
+
+  isEmpty() {
+    return this.items.length === 0
+  }
 } 
