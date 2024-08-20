@@ -1,5 +1,7 @@
 import { Queue } from "./linked-list.js";
 
+let classId = 0;
+
 class TreeNode {
   constructor(data, children = [], parent = null) {
     this.data = data;
@@ -11,6 +13,8 @@ class TreeNode {
     childNode.parent = this; // bind the child to this node
     this.children.push(childNode);
   }
+
+  // removeSelf
 
   removeChild(nodeToRemove, preserveChildren) {
     const index = this.children.indexOf((child) => {
@@ -37,24 +41,41 @@ class TreeNode {
     console.log(" ".repeat(level * 2) + this.data);
     this.children.forEach((child) => child.print(level + 1));
   }
+
+  toObject() {
+    function nodeToObject(node) {
+      return {
+        id: node.data.id,
+        name: node.data.name,
+        description: node.data.description,
+        children: node.children.map((child) => nodeToObject(child)),
+      };
+    }
+    return nodeToObject(this);
+  }
 }
 
-class Tree {
+export class Tree {
+  id = classId++;
+  childId = 0;
+
   constructor(rootValue, children, parent ) {
-    console.log('hheerrre');
-    
     console.log(rootValue instanceof(TreeNode));
     
     if (rootValue instanceof(TreeNode)) {
       this.root = rootValue;
     } else {
-      this.root = new TreeNode(rootValue, children, parent);
+      this.root = new TreeNode(rootValue = {name: 'New Tree', id: this.createChildId()}, children, parent);
     }
   }
 
+  createChildId() {
+    return this.childId++;
+  }
+
   addNode(newValue, parentValue, parentId) {
-    const parentNode = this.findBreadthSearch(parentValue, parentId);
-    console.log(parentNode);
+    const parentNode = parentNode || this.findBreadthSearch(parentValue, parentId);
+
     if (parentNode) {
       const newNode = new TreeNode(newValue);
       parentNode.addChild(newNode);
@@ -88,24 +109,22 @@ class Tree {
     return null; // if not found
   }
 
-  recursiveDepthSearch(nodeValue, currentNode = this.root) {
-    console.log(currentNode.data.name);
+  recursiveDepthSearch(nodeId, currentNode = this.root) {
 
-    if (currentNode.data.name === nodeValue) {
+    if (currentNode.data.id === nodeId) {
       return currentNode;
     }
 
-    console.log(currentNode.children);
 
     for (const child of currentNode.children) {
-      const result = this.recursiveDepthSearch(nodeValue, child);
+      const result = this.recursiveDepthSearch(nodeId, child);
       console.log(`Result for ${currentNode.data.name}:`, result);
 
       if (result) {
         return result;
       }
     }
-    // return null;
+    return null;
   }
 
   findBreadthSearch(nodeName, nodeId, startingNode) {
@@ -113,7 +132,6 @@ class Tree {
     const dataToFind = nodeName || nodeId;
     const keyToUse = nodeName ? "name" : "id";
     let queue = new Queue();
-    console.log(startingNode || this.root);
 
     queue.enqueue(startingNode || this.root);
 
@@ -130,45 +148,100 @@ class Tree {
   }
 
   toObject() {
-    function nodeToObject(node) {
-      return {
-        id: node.data.id,
-        name: node.data.name,
-        children: node.children.map((child) => nodeToObject(child)),
-      };
-    }
-    return nodeToObject(this.root);
+    return this.root.toObject()
+  }
+
+  print() {
+    this.root.print();
   }
 }
 
-const tree = new Tree({ id: 0, name: "root" });
-// console.log(tree);
+// const tree = new Tree({ id: 0, name: "root" });
+// // console.log(tree);
 
-console.log(tree.addNode({ id: 1, name: "child1" }, "root"));
-console.log(tree.addNode({ id: 2, name: "child2" }, "root"));
-console.log(tree.addNode({ id: 3, name: "child3" }, "child1"));
-console.log(tree.addNode({ id: 4, name: "child4" }, "child1"));
-console.log(tree.addNode({ id: 5, name: "child5" }, "child2"));
+// console.log(tree.addNode({ id: 1, name: "child1" }, "root"));
+// console.log(tree.addNode({ id: 2, name: "child2" }, "root"));
+// console.log(tree.addNode({ id: 3, name: "child3" }, "child1"));
+// console.log(tree.addNode({ id: 4, name: "child4" }, "child1"));
+// console.log(tree.addNode({ id: 5, name: "child5" }, "child2"));
 
-const kyo = new TreeNode({ id: 1, name: "kyo" });
-const dawa = new TreeNode({ id: 2, name: "dawa" }, [
-  new TreeNode({ id: 3, name: "seamus" }),
-  new TreeNode({ id: 4, name: "harlow" }),
+const kyo = new TreeNode({ 
+  id: 1, 
+  name: "kyo", 
+  description: "Systems Engineer responsible for maintaining and optimizing life support and communications systems on Mars." 
+});
+
+const dawa = new TreeNode({ 
+  id: 2, 
+  name: "dawa", 
+  description: "Lead Biologist overseeing agricultural experiments and food production in the Martian colony." 
+}, [
+  new TreeNode({ 
+    id: 3, 
+    name: "seamus", 
+    description: "Assistant Biologist working on soil enrichment and crop sustainability in the Martian environment." 
+  }),
+  new TreeNode({ 
+    id: 4, 
+    name: "harlow", 
+    description: "Hydrologist managing water resources, including extraction and recycling systems." 
+  }),
 ]);
-const riley = new TreeNode({ id: 5, name: "riley" }, [
-  new TreeNode({ id: 6, name: "les" }),
-  new TreeNode({ id: 7, name: "endi" }),
+
+const riley = new TreeNode({ 
+  id: 5, 
+  name: "riley", 
+  description: "Chief Medical Officer overseeing the health and well-being of all Martian colonists." 
+}, [
+  new TreeNode({ 
+    id: 6, 
+    name: "les", 
+    description: "Surgeon specialized in emergency procedures and trauma care for Martian settlers." 
+  }),
+  new TreeNode({ 
+    id: 7, 
+    name: "endi", 
+    description: "Psychologist providing mental health support and counseling to colony members." 
+  }),
 ]);
-const mien = new TreeNode({ id: 8, name: "mien" }, [
-  new TreeNode({ id: 9, name: "isi" }),
+
+const mien = new TreeNode({ 
+  id: 8, 
+  name: "mien", 
+  description: "Chief Engineer responsible for infrastructure maintenance and new construction projects on Mars." 
+}, [
+  new TreeNode({ 
+    id: 9, 
+    name: "isi", 
+    description: "Mechanical Engineer focusing on vehicle and machinery maintenance in the harsh Martian environment." 
+  }),
 ]);
 
-const taylor = new TreeNode({ id: 10, name: "taylor" }, [kyo]);
-const zuza = new TreeNode({ id: 11, name: "zuza" }, [dawa, riley]);
-const rachna = new TreeNode({ id: 12, name: "rachna" }, [mien]);
+const taylor = new TreeNode({ 
+  id: 10, 
+  name: "taylor", 
+  description: "Chief of Security, ensuring the safety of all colonists and protecting the base from external threats." 
+}, [kyo]);
 
-const morgan = new TreeNode({ id: 13, name: "morgan" }, [taylor, zuza, rachna]);
+const zuza = new TreeNode({ 
+  id: 11, 
+  name: "zuza", 
+  description: "Head of Research, leading scientific studies and experiments to expand Martian knowledge." 
+}, [dawa, riley]);
 
-export const empTree = new Tree(morgan, true);
+const rachna = new TreeNode({ 
+  id: 12, 
+  name: "rachna", 
+  description: "Operations Manager, overseeing daily activities and logistics within the Martian colony." 
+}, [mien]);
 
-console.log("Init search: ", empTree.recursiveDepthSearch("riley"));
+const morgan = new TreeNode({ 
+  id: 13, 
+  name: "morgan", 
+  description: "Chief Officer of Lunar Operations, overseeing all activities related to lunar missions and base management on Mars." 
+}, [taylor, zuza, rachna]);
+
+export const empTree = new Tree(morgan);
+
+
+// console.log("Init search: ", empTree.recursiveDepthSearch("riley"));
