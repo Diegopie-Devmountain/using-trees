@@ -33,7 +33,6 @@ class LinkedList {
 
   removeHead() {
     const nodeToRemove = this.head;
-    console.log('head: ', this.head);
     
     this.head = this.head.next;
     if (this.head === null) {
@@ -67,14 +66,12 @@ export class Queue extends LinkedList {
   enqueue(data) {
     this.append(data);
     this.items = this.toArray();
-    console.log('enqueue: ', this.items);
-    
   }
 
   dequeue() {
     const removedNode = this.removeHead();
-    this.items = this.toArray();
-    return removedNode;
+    this.items = this.toArray();    
+    return removedNode.data;
   }
 
   isEmpty() {

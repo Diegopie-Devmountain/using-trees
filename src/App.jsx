@@ -6,6 +6,7 @@ import { TreeContainer } from './components/TreeContainer';
 function App() {
 
   const [trees, setTrees] = useState([empTree]);
+  // const [trees, setTrees] = useState([]); 
 
   const handleCreateTree = () => {
     setTrees([...trees, new Tree()]);
