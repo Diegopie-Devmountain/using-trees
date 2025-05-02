@@ -8,6 +8,9 @@ export function TreeContainer({ treeNode }) {
 
   const selectedNode = useRef(null);
 
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+
   const [treeData, setSetTreeData] = useState(treeNode.toObject());
 
   const [currentNodeData, setCurrentNodeData] = useState(null);
@@ -25,11 +28,14 @@ export function TreeContainer({ treeNode }) {
     // setCurrentNodeData({...currentNodeData, children: selectedNode.current.children})
   }
 
-  const handleEdit = () => {
-    selectedNode.current.editNode({ name: 'New edit' });
+  const handleSave = () => {
+    selectedNode.current.editNode({ name, description });
     setSetTreeData(treeNode.toObject());
+    setIsEdit(false)
     // setCurrentNodeData({...currentNodeData, children: selectedNode.current.children})
   }
+
+  const [isEdit, setIsEdit] = useState(false);
 
   return (
     <section className='flex flex-row justify-center mx-5 mt-10 h-[28rem]'>
@@ -43,8 +49,12 @@ export function TreeContainer({ treeNode }) {
             console.log(e.data.id);
             selectedNode.current = treeNode.recursiveDepthSearch(e.data.id);
             console.log(selectedNode.current.data.name);
+
+            // Setters
             setCurrentNodeData(e.data);
             setIsLoading(false);
+            setName(selectedNode.current.data.name);
+            setDescription(selectedNode.current.data.description);
           }}
           data={treeData}
           collapsible={false}
@@ -59,10 +69,21 @@ export function TreeContainer({ treeNode }) {
           :
           currentNodeData &&
           <article className='mx-8'>
-            <p className='capitalize'>Name: {currentNodeData.name}
-              {/* <span>| id: {currentNodeData.id}</span> */}
-            </p>
-            <p className='mt-3 capitalize text-sm'>{currentNodeData.description}</p>
+            {!isEdit ?
+              <>
+                <p className='capitalize'>Name: {currentNodeData.name}
+                  {/* <span>| id: {currentNodeData.id}</span> */}
+                </p>
+                <p className='mt-3 capitalize text-sm'>{currentNodeData.description}</p>
+              </>
+              :
+              <>
+                <input className='border' type='text' value={name} onChange={(e) => setName(e.target.value)} />
+                <textarea className='border mt-6 h-28' value={description} onChange={(e) => setDescription(e.target.value)}>
+
+                </textarea>
+              </>
+            }
             <article className='flex gap-2 flex-wrap justify-center'>
               <button
                 onClick={handleRemove}
@@ -76,10 +97,17 @@ export function TreeContainer({ treeNode }) {
                 onClick={handleAdd}
                 className='btn lg:w-2/5 mt-5'
               >Add Child</button>
-              <button
-                onClick={handleEdit}
-                className='btn lg:w-2/5 mt-5'
-              >Edit</button>
+              {!isEdit ?
+                <button
+                  onClick={() => setIsEdit(true)}
+                  className='btn lg:w-2/5 mt-5'
+                >Edit</button>
+                :
+                <button
+                  onClick={handleSave}
+                  className='btn lg:w-2/5 mt-5'
+                >Save</button>
+              }
             </article>
             <div className='mb-4'>
               <h3 className='mt-8 mb-4 font-mono text-lg font-semibold text-center'>Children</h3>
