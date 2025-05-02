@@ -1,6 +1,6 @@
 import { empTree, Tree } from './data/tree.js';
 import './App.css';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { TreeContainer } from './components/TreeContainer';
 
 import Header from './layouts/Header.jsx';
@@ -10,6 +10,7 @@ function App() {
   const [trees, setTrees] = useState([empTree]);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [sidebarColor, setSidebarColor] = useState('bg-green-50');
+  const hamburgerRef = useRef(null);
 
   const handleCreateTree = () => {
     setTrees([...trees, new Tree()]);
@@ -27,7 +28,11 @@ function App() {
   return (
     <div className="flex flex-col h-screen">
       {/* Top Navigation - First in document flow */}
-      <Header onToggleSidebar={handleToggleSidebar} />
+      <Header 
+        onToggleSidebar={handleToggleSidebar} 
+        isExpanded={sidebarExpanded} 
+        ref={hamburgerRef}
+      />
 
       {/* Content area with sidebar and main content */}
       <div className="flex flex-1">
@@ -36,6 +41,7 @@ function App() {
           initialExpanded={sidebarExpanded}
           initialColor={sidebarColor} 
           onToggle={setSidebarExpanded}
+          hamburgerRef={hamburgerRef}
         />
 
         {/* Main Content - adjust based on sidebar state */}
@@ -44,7 +50,12 @@ function App() {
             {trees.map(tree => <TreeContainer key={tree.id} treeNode={tree} />)}
           </section>
           <div className='mt-10 mx-16'>
-            <button onClick={handleCreateTree} className='btn'>Create Tree</button>
+            <button 
+              onClick={handleCreateTree} 
+              className='btn focus:outline-none focus:ring-2 focus:ring-green-400'
+            >
+              Create Tree
+            </button>
           </div>
         </main>
       </div>
