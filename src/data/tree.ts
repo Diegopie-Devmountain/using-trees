@@ -1,6 +1,7 @@
 import { Queue } from "./linked-list";
+import { v4 as uuidv4 } from 'uuid';
 
-let classId = 0;
+
 
 // Define TypeScript interfaces for the data
 export interface TreeNodeData {
@@ -257,7 +258,7 @@ export interface TreeNodeObject {
 }
 
 export class Tree {
-  id: number = classId++;
+  id: number = uuidv4();
   childId: number = 0;
   root: TreeNode;
 
@@ -287,8 +288,8 @@ export class Tree {
     // Create a new Tree instance
     const tree = new Tree();
     
-    // Restore tree properties
-    tree.id = obj.id !== undefined ? obj.id : classId++;
+    // Restore tree properties - use the exact ID from the saved object
+    tree.id = obj.id;
     tree.childId = obj.childId !== undefined ? obj.childId : 0;
     
     // Reconstruct the tree structure

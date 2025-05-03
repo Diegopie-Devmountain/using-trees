@@ -15,7 +15,7 @@ export default function Sidebar({
   hamburgerRef
 }: SidebarProps) {
   // Local state
-  const [expanded, setExpanded] = useState(initialExpanded);
+  const [expanded, setExpanded] = useState<boolean>(initialExpanded);
   const [sidebarColor, setSidebarColor] = useState(initialColor);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState('');
@@ -79,7 +79,10 @@ export default function Sidebar({
             ref={firstButtonRef}
             className="flex items-center justify-center"
             aria-label="Create new workspace"
-            onClick={() => setIsCreatingWorkspace(true)}
+            onClick={() => {
+              if (!expanded) setExpanded(true);
+              setIsCreatingWorkspace(true)
+            }}
           >
             <div className="bg-green-300 hover:bg-green-400 rounded-full w-10 h-10 flex items-center justify-center text-xl focus:outline-none focus:ring-2 focus:ring-green-600">
               +

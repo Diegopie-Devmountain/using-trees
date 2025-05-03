@@ -54,9 +54,16 @@ export const WorkspaceProvider: React.FC<{ children: ReactNode }> = ({ children 
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
+      // Check if we already have workspaces in state to prevent double initialization
+      if (state.workspaces.length > 0) {
+        setState(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+      
       const workspaces = await storageService.getWorkspaces();
       const activeId = await storageService.getActiveWorkspaceId();
       
+      // Update state with fetched workspaces
       setState({
         workspaces,
         activeWorkspaceId: activeId,
@@ -64,9 +71,13 @@ export const WorkspaceProvider: React.FC<{ children: ReactNode }> = ({ children 
         error: null
       });
       
-      // Create default workspace if none exists
+      // Create default workspace if none exists - only if we truly have no workspaces
       if (workspaces.length === 0) {
-        createDefaultWorkspace();
+        // Check again to make sure we don't have any workspaces before creating default
+        const doubleCafeStockCheck = await storageService.getWorkspaces();
+        if (doubleCafeStockCheck.length === 0) {
+          await createDefaultWorkspace();
+        }
       }
     } catch (error) {
       setState(prev => ({
@@ -79,11 +90,33 @@ export const WorkspaceProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   // Create default workspace
   const createDefaultWorkspace = async () => {
+    // Check if default workspace creation is already in progress
+    const defaultWorkspaceInProgress = localStorage.getItem('tree-app-default-workspace-in-progress');
+    if (defaultWorkspaceInProgress === 'true') {
+      // Another instance is already creating a default workspace
+      return;
+    }
+    
     try {
-      const defaultWorkspace = await createWorkspace('Example Workspace', 'Workspaces allow you to create multiple trees to for your organizational needs.');
+      // Set the lock
+      localStorage.setItem('tree-app-default-workspace-in-progress', 'true');
+      
+      // Double check that we still need to create a workspace
+      const currentWorkspaces = await storageService.getWorkspaces();
+      if (currentWorkspaces.length > 0) {
+        // Workspaces already exist, no need to create default
+        localStorage.removeItem('tree-app-default-workspace-in-progress');
+        return;
+      }
+      
+      // Create the default workspace
+      const defaultWorkspace = await createWorkspace('Example Workspace', 'Workspaces allow you to create multiple trees for your organizational needs.');
       await setActiveWorkspace(defaultWorkspace.id);
     } catch (error) {
       console.error('Error creating default workspace:', error);
+    } finally {
+      // Always release the lock
+      localStorage.removeItem('tree-app-default-workspace-in-progress');
     }
   };
 
