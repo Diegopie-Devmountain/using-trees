@@ -1,8 +1,9 @@
 import Tree, { TreeNodeDatum } from 'react-d3-tree';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { BounceLoader } from 'react-spinners';
 import { v4 as uuidv4 } from 'uuid';
 import { Tree as TreeModel, TreeNode, TreeNodeData } from '../../data/tree';
+import { useWorkspace } from '../../context/WorkspaceContext';
 
 // Define the interface for the tree node data in our component context
 interface TreeNodeViewData {
@@ -17,6 +18,7 @@ interface TreeContainerProps {
 }
 
 export function TreeContainer({ treeNode }: TreeContainerProps) {
+  const { updateTree } = useWorkspace();
   const selectedNode = useRef<TreeNode | null>(null);
 
   const [name, setName] = useState<string>('');
@@ -28,7 +30,16 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isEdit, setIsEdit] = useState<boolean>(false);
 
-  const handleRemove = (preserveChildren: boolean = true): void => {
+  // Save tree to localStorage whenever it changes
+  const saveTreeChanges = async () => {
+    try {
+      await updateTree(treeNode);
+    } catch (error) {
+      console.error('Error saving tree changes:', error);
+    }
+  };
+
+  const handleRemove = async (preserveChildren: boolean = true): Promise<void> => {
     if (selectedNode.current) {
       // Check if the selected node is the root node
       if (selectedNode.current === treeNode.root) {
@@ -40,13 +51,16 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       selectedNode.current.removeChild(selectedNode.current, preserveChildren);
       setSetTreeData(treeNode.toObject());
       
+      // Save changes to localStorage
+      await saveTreeChanges();
+      
       // Reset the selection since the node is now removed
       selectedNode.current = null;
       setCurrentNodeData(null);
     }
   }
 
-  const handleAdd = (): void => {
+  const handleAdd = async (): Promise<void> => {
     if (selectedNode.current) {
       // Create a new node as a child of the selected node
       treeNode.createNode(
@@ -59,13 +73,20 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
         selectedNode.current.data.id
       );
       setSetTreeData(treeNode.toObject());
+      
+      // Save changes to localStorage
+      await saveTreeChanges();
     }
   }
 
-  const handleSave = (): void => {
+  const handleSave = async (): Promise<void> => {
     if (selectedNode.current) {
       selectedNode.current.editNode({ name, description });
       setSetTreeData(treeNode.toObject());
+      
+      // Save changes to localStorage
+      await saveTreeChanges();
+      
       setIsEdit(false);
     }
   }
