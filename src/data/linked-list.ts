@@ -1,20 +1,28 @@
-class Node {
-  constructor(data) {
+// Generic type to allow for different kinds of data in the linked list
+class Node<T> {
+  data: T;
+  next: Node<T> | null;
+  previous: Node<T> | null;
+
+  constructor(data: T) {
     this.data = data;
     this.next = null;
     this.previous = null;
   }
 }
 
-class LinkedList {
+class LinkedList<T> {
+  head: Node<T> | null;
+  tail: Node<T> | null;
+
   constructor() {
     this.head = null;
     this.tail = null;
   }
 
   // add node to the end
-  append(data) {
-    const newNode = new Node(data);
+  append(data: T): Node<T> {
+    const newNode = new Node<T>(data);
 
     if (this.tail === null) {
       // list is empty, will be first item
@@ -31,7 +39,11 @@ class LinkedList {
     return newNode;
   }
 
-  removeHead() {
+  removeHead(): Node<T> {
+    if (!this.head) {
+      throw new Error("Cannot remove head from empty list");
+    }
+    
     const nodeToRemove = this.head;
     
     this.head = this.head.next;
@@ -44,8 +56,8 @@ class LinkedList {
     return nodeToRemove;
   }
 
-  toArray() {
-    const array = [];
+  toArray(): T[] {
+    const array: T[] = [];
     let currentNode = this.head;
 
     while (currentNode !== null) {
@@ -57,24 +69,26 @@ class LinkedList {
   }
 }
 
-export class Queue extends LinkedList {
-  constructor (item) {
+export class Queue<T> extends LinkedList<T> {
+  items: T[];
+
+  constructor(item?: T) {
     super();
-    this.items = [item];
+    this.items = item ? [item] : [];
   }
 
-  enqueue(data) {
+  enqueue(data: T): void {
     this.append(data);
     this.items = this.toArray();
   }
 
-  dequeue() {
+  dequeue(): T {
     const removedNode = this.removeHead();
     this.items = this.toArray();    
     return removedNode.data;
   }
 
-  isEmpty() {
-    return this.items.length === 0
+  isEmpty(): boolean {
+    return this.head === null || this.items.length === 0;
   }
-} 
+}

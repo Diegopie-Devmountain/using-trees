@@ -1,28 +1,40 @@
-import { Queue } from "./linked-list.js";
+import { Queue } from "./linked-list";
 
 let classId = 0;
 
-class TreeNode {
-  constructor(data, children = [], parent = null) {
+// Define TypeScript interfaces for the data
+export interface TreeNodeData {
+  id: number;
+  name: string;
+  description?: string;
+  [key: string]: any; // Allow for additional properties
+}
+
+// Export the TreeNode class so it can be used by other files
+export class TreeNode {
+  data: TreeNodeData;
+  children: TreeNode[];
+  parent: TreeNode | null;
+
+  constructor(data: TreeNodeData, children: TreeNode[] = [], parent: TreeNode | null = null) {
     this.data = data;
     this.children = children;
     this.parent = parent;
   }
 
   // Manage Nodes
-  addChild(childNode) {
+  addChild(childNode: TreeNode): void {
     childNode.parent = this; // bind the child to this node
     this.children.push(childNode);
   }
 
-  createNode(newValue, parentValue, parentId) {
+  createNode(newValue: TreeNodeData, parentValue?: string, parentId?: number): TreeNode | null {
     console.log("create", newValue, parentValue, parentId);
 
-    let parentNode = null;
+    let parentNode: TreeNode | null = null;
 
     if (this.parent === null) {
       console.log("hit null");
-
       parentNode = this.findBreadthSearch(parentValue, parentId);
     } else if (this.data.name === parentValue) {
       console.log("hit name", this);
@@ -32,14 +44,12 @@ class TreeNode {
       parentNode = this;
     } else {
       console.log("else", this);
-
-      parentNode = this.parentNode.findBreadthSearch(parentValue, parentId);
+      parentNode = this.parent.findBreadthSearch(parentValue, parentId);
     }
 
     if (parentNode) {
       const newNode = new TreeNode(newValue);
       parentNode.addChild(newNode);
-
       return newNode;
     }
     console.error("Could not find parent");
@@ -48,8 +58,13 @@ class TreeNode {
 
   // removeSelf
 
-  removeChild(nodeToRemove, preserveChildren) {
+  removeChild(nodeToRemove: TreeNode, preserveChildren: boolean): void {
     const preservedParent = this.parent;
+
+    if (!this.parent) {
+      console.error("Cannot remove child of node with no parent");
+      return;
+    }
 
     const index = this.parent.children.findIndex((child) => {
       return child.data.name === nodeToRemove.data.name;
@@ -60,8 +75,8 @@ class TreeNode {
       this.parent.children.splice(index, 1); // remove connection to child
       nodeToRemove.parent = null; // remove connection to parent
 
-      // (optional) Add first level of children to parent ( )
-      if (preserveChildren) {
+      // (optional) Add first level of children to parent
+      if (preserveChildren && preservedParent) {
         for (let i = 0; i < nodeToRemove.children.length; i++) {
           const child = nodeToRemove.children[i];
           child.parent = preservedParent;
@@ -71,8 +86,8 @@ class TreeNode {
     }
   }
 
-  editNode(newData, nodeValue, nodeId) {
-    let nodeToEdit = null;
+  editNode(newData: Partial<TreeNodeData>, nodeValue?: string, nodeId?: number): TreeNode | null {
+    let nodeToEdit: TreeNode | null = null;
 
     if (!nodeValue && !nodeId) {
       nodeToEdit = this;
@@ -82,9 +97,7 @@ class TreeNode {
 
     if (nodeToEdit) {
       nodeToEdit.data = { ...nodeToEdit.data, ...newData };
-
       console.log(nodeToEdit);
-
       return nodeToEdit;
     }
     console.error("Could not find node");
@@ -92,7 +105,7 @@ class TreeNode {
   }
 
   // Search Algo
-  findBreadthSearch(nodeName, nodeId, startingNode) {
+  findBreadthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
     console.log("find", nodeName, nodeId);
 
     // Search by name or id
@@ -101,8 +114,11 @@ class TreeNode {
 
     console.log("Queue", keyToUse, dataToFind);
 
-    let queue = new Queue();
+    if (!dataToFind) {
+      return null;
+    }
 
+    let queue = new Queue<TreeNode>();
     queue.enqueue(startingNode || this);
 
     while (!queue.isEmpty()) {
@@ -121,17 +137,23 @@ class TreeNode {
     return null;
   }
 
-  findDepthSearch(nodeName, nodeId, startingNode) {
+  findDepthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
     // Search by name or id
     const dataToFind = nodeName || nodeId;
     const keyToUse = nodeName ? "name" : "id";
 
+    if (!dataToFind) {
+      return null;
+    }
+
     // init the stack with the node we are searching from
-    const stack = startingNode ? [startingNode] : [this];
+    const stack: TreeNode[] = startingNode ? [startingNode] : [this];
 
     // create a while loop that will add and subtract from the stack length
     while (stack.length > 0) {
       const currentNode = stack.pop();
+      
+      if (!currentNode) continue;
 
       if (currentNode.data[keyToUse] === dataToFind) {
         return currentNode;
@@ -145,15 +167,13 @@ class TreeNode {
     return null; // if not found
   }
 
-  recursiveDepthSearch(nodeId, currentNode = this) {
+  recursiveDepthSearch(nodeId: number | string, currentNode: TreeNode = this): TreeNode | null {
     if (currentNode.data.id === nodeId) {
       return currentNode;
     }
 
     for (const child of currentNode.children) {
       const result = this.recursiveDepthSearch(nodeId, child);
-      // console.log(`Result for ${currentNode.data.name}:`, result);
-
       if (result) {
         return result;
       }
@@ -162,17 +182,17 @@ class TreeNode {
   }
 
   // Export
-  print(level = 0) {
-    console.log(" ".repeat(level * 2) + this.data);
+  print(level: number = 0): void {
+    console.log(" ".repeat(level * 2) + this.data.name);
     this.children.forEach((child) => child.print(level + 1));
   }
 
-  toObject() {
-    function nodeToObject(node) {
+  toObject(): TreeNodeObject {
+    function nodeToObject(node: TreeNode): TreeNodeObject {
       return {
         id: node.data.id,
         name: node.data.name,
-        description: node.data.description,
+        description: node.data.description || '',
         children: node.children.map((child) => nodeToObject(child)),
       };
     }
@@ -180,58 +200,70 @@ class TreeNode {
   }
 }
 
+// Definition for the tree node object returned by toObject()
+export interface TreeNodeObject {
+  id: number;
+  name: string;
+  description: string;
+  children: TreeNodeObject[];
+}
+
 export class Tree {
-  id = classId++;
-  childId = 0;
+  id: number = classId++;
+  childId: number = 0;
+  root: TreeNode;
 
   constructor(
-    rootValue = { name: "New Tree", id: this.createChildId() },
-    children,
-    parent
+    rootValue: TreeNodeData | TreeNode = { name: "New Tree", id: 0 },
+    children?: TreeNode[],
+    parent?: TreeNode | null
   ) {
     console.log(rootValue instanceof TreeNode);
 
     if (rootValue instanceof TreeNode) {
       this.root = rootValue;
     } else {
-      this.root = new TreeNode(rootValue, children, parent);
+      if (typeof rootValue === 'object' && 'id' in rootValue === false) {
+        (rootValue as TreeNodeData).id = this.createChildId();
+      }
+      this.root = new TreeNode(rootValue as TreeNodeData, children, parent || null);
     }
   }
 
-  createChildId() {
+  createChildId(): number {
     return this.childId++;
   }
 
-  createNode(newValue, parentValue, parentId) {
+  createNode(newValue: TreeNodeData, parentValue?: string, parentId?: number): TreeNode | null {
     return this.root.createNode(newValue, parentValue, parentId);
   }
 
-  removeChild(nodeToRemove, preserveChildren) {
+  removeChild(nodeToRemove: TreeNode, preserveChildren: boolean): void {
     return this.root.removeChild(nodeToRemove, preserveChildren);
   }
 
-  editNode(newData, nodeValue, nodeId) {
+  editNode(newData: Partial<TreeNodeData>, nodeValue?: string, nodeId?: number): TreeNode | null {
     return this.root.editNode(newData, nodeValue, nodeId);
   }
 
-  findBreadthSearch(nodeName, nodeId, startingNode) {
+  findBreadthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
     // Search by name or id
     return this.root.findBreadthSearch(nodeName, nodeId, startingNode);
   }
 
-  findDepthSearch(nodeName, nodeId, startingNode) {
+  findDepthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
     return this.root.findDepthSearch(nodeName, nodeId, startingNode);
   }
 
-  recursiveDepthSearch(nodeId, currentNode = this.root) {
+  recursiveDepthSearch(nodeId: number | string, currentNode: TreeNode = this.root): TreeNode | null {
     return this.root.recursiveDepthSearch(nodeId, currentNode);
   }
 
-  toObject() {
+  toObject(): TreeNodeObject {
     return this.root.toObject();
   }
 
-  print() {
+  print(): void {
     this.root.print();
   }
 }

@@ -1,7 +1,11 @@
-import PropTypes from "prop-types";
-import { forwardRef } from "react";
+import { forwardRef, ForwardedRef } from "react";
 
-const Header = forwardRef(({ onToggleSidebar, isExpanded }, ref) => {
+interface HeaderProps {
+  onToggleSidebar: () => void;
+  isExpanded: boolean;
+}
+
+const Header = forwardRef<HTMLButtonElement, HeaderProps>(({ onToggleSidebar, isExpanded }, ref) => {
   const handleToggle = () => {
     onToggleSidebar();
   };
@@ -52,10 +56,5 @@ const Header = forwardRef(({ onToggleSidebar, isExpanded }, ref) => {
 });
 
 Header.displayName = 'Header';
-
-Header.propTypes = {
-  onToggleSidebar: PropTypes.func.isRequired,
-  isExpanded: PropTypes.bool.isRequired
-};
 
 export default Header;

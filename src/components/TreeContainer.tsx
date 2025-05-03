@@ -1,61 +1,86 @@
-import Tree from 'react-d3-tree';
+import Tree, { TreeNodeDatum } from 'react-d3-tree';
 import { useRef, useState } from 'react';
 import { BounceLoader } from 'react-spinners';
 import { v4 as uuidv4 } from 'uuid';
+import { Tree as TreeModel, TreeNode, TreeNodeData } from '../data/tree';
 
+// Define the interface for the tree node data in our component context
+interface TreeNodeViewData {
+  id: number | string;
+  name: string;
+  description?: string;
+  children?: TreeNodeViewData[];
+}
 
-export function TreeContainer({ treeNode }) {
+interface TreeContainerProps {
+  treeNode: TreeModel;
+}
 
-  const selectedNode = useRef(null);
+export function TreeContainer({ treeNode }: TreeContainerProps) {
+  const selectedNode = useRef<TreeNode | null>(null);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
 
-  const [treeData, setSetTreeData] = useState(treeNode.toObject());
+  const [treeData, setSetTreeData] = useState<TreeNodeViewData>(treeNode.toObject());
 
-  const [currentNodeData, setCurrentNodeData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [currentNodeData, setCurrentNodeData] = useState<TreeNodeViewData | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isEdit, setIsEdit] = useState<boolean>(false);
 
-  const handleRemove = (preserveChildren = true) => {
-    selectedNode.current.removeChild(selectedNode.current, preserveChildren);
-    setSetTreeData(treeNode.toObject());
+  const handleRemove = (preserveChildren: boolean = true): void => {
+    if (selectedNode.current) {
+      selectedNode.current.removeChild(selectedNode.current, preserveChildren);
+      setSetTreeData(treeNode.toObject());
+    }
   }
 
-  const handleAdd = () => {
-    selectedNode.current.createNode({ id: uuidv4(), name: 'New Child', description: 'new node' }, null, selectedNode.current.data.id);
-    setSetTreeData(treeNode.toObject());
-
-    // setCurrentNodeData({...currentNodeData, children: selectedNode.current.children})
+  const handleAdd = (): void => {
+    if (selectedNode.current) {
+      // Using a numbered ID to comply with TreeNodeData interface
+      selectedNode.current.createNode(
+        { 
+          // Generate a simple numeric ID instead of UUID
+          id: Date.now(), 
+          name: 'New Child', 
+          description: 'new node' 
+        }, 
+        undefined, 
+        selectedNode.current.data.id
+      );
+      setSetTreeData(treeNode.toObject());
+    }
   }
 
-  const handleSave = () => {
-    selectedNode.current.editNode({ name, description });
-    setSetTreeData(treeNode.toObject());
-    setIsEdit(false)
-    // setCurrentNodeData({...currentNodeData, children: selectedNode.current.children})
+  const handleSave = (): void => {
+    if (selectedNode.current) {
+      selectedNode.current.editNode({ name, description });
+      setSetTreeData(treeNode.toObject());
+      setIsEdit(false);
+    }
   }
 
-  const [isEdit, setIsEdit] = useState(false);
+  const handleNodeClick = (nodeData: TreeNodeDatum): void => {
+    setIsLoading(true);
+    console.log(nodeData.data.id);
+    selectedNode.current = treeNode.recursiveDepthSearch(nodeData.data.id);
+    if (selectedNode.current) {
+      console.log(selectedNode.current.data.name);
+      
+      // Setters
+      setCurrentNodeData(nodeData.data);
+      setName(selectedNode.current.data.name);
+      setDescription(selectedNode.current.data.description || '');
+    }
+    setIsLoading(false);
+  };
 
   return (
     <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4'>
       <div id="" className="w-full lg:w-2/3" style={{ height: '28em', border: 'solid' }}>
         <Tree
           orientation='vertical'
-          onNodeClick={(e) => {
-            setIsLoading(true);
-            // console.log(e);
-            // use tree nod to find the actual node
-            console.log(e.data.id);
-            selectedNode.current = treeNode.recursiveDepthSearch(e.data.id);
-            console.log(selectedNode.current.data.name);
-
-            // Setters
-            setCurrentNodeData(e.data);
-            setIsLoading(false);
-            setName(selectedNode.current.data.name);
-            setDescription(selectedNode.current.data.description);
-          }}
+          onNodeClick={handleNodeClick}
           data={treeData}
           collapsible={false}
         />
@@ -101,7 +126,7 @@ export function TreeContainer({ treeNode }) {
               {!isEdit && (
                 <>
                   <button
-                    onClick={handleRemove}
+                    onClick={() => handleRemove(true)}
                     className='btn w-full mt-5'
                   >Remove Node</button>
                   <button
@@ -133,7 +158,7 @@ export function TreeContainer({ treeNode }) {
               {
                 currentNodeData && currentNodeData.children && 
                   <p className='text-center'>
-                    {currentNodeData.children.map(child => child.name).join(', ')}
+                    {currentNodeData.children.map((child: TreeNodeViewData) => child.name).join(', ')}
                   </p>
               }
             </div>

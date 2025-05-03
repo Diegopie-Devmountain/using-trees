@@ -1,27 +1,28 @@
-import { empTree, Tree } from './data/tree.js';
+import { empTree, Tree } from './data/tree';
 import './App.css';
 import { useState, useRef } from 'react';
 import { TreeContainer } from './components/TreeContainer';
 
-import Header from './layouts/Header.jsx';
-import Sidebar from './layouts/Sidebar.jsx';
+// Import TypeScript versions of the components
+import Header from './layouts/Header';
+import Sidebar from './layouts/Sidebar';
 
 function App() {
-  const [trees, setTrees] = useState([empTree]);
-  const [sidebarExpanded, setSidebarExpanded] = useState(false);
-  const [sidebarColor, setSidebarColor] = useState('bg-green-50');
-  const hamburgerRef = useRef(null);
+  const [trees, setTrees] = useState<Tree[]>([empTree]);
+  const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(false);
+  const [sidebarColor, setSidebarColor] = useState<string>('bg-green-50');
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
 
-  const handleCreateTree = () => {
+  const handleCreateTree = (): void => {
     setTrees([...trees, new Tree()]);
   }
 
-  const handleToggleSidebar = () => {
+  const handleToggleSidebar = (): void => {
     setSidebarExpanded(!sidebarExpanded);
   }
 
   // Could be expanded with color picker functionality
-  const handleColorChange = (color) => {
+  const handleColorChange = (color: string): void => {
     setSidebarColor(color);
   }
 
