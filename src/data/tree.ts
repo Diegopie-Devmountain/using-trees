@@ -22,6 +22,21 @@ export class TreeNode {
     this.parent = parent;
   }
 
+  // Static method to recreate a TreeNode from a plain object
+  static fromObject(obj: any, parent: TreeNode | null = null): TreeNode {
+    // Create the node with its data
+    const node = new TreeNode(obj.data, [], parent);
+    
+    // Recursively recreate children
+    if (obj.children && Array.isArray(obj.children)) {
+      node.children = obj.children.map((childObj: any) => 
+        TreeNode.fromObject(childObj, node)
+      );
+    }
+    
+    return node;
+  }
+
   // Manage Nodes
   addChild(childNode: TreeNode): void {
     childNode.parent = this; // bind the child to this node
@@ -33,25 +48,47 @@ export class TreeNode {
 
     let parentNode: TreeNode | null = null;
 
-    if (this.parent === null) {
-      console.log("hit null");
-      parentNode = this.findBreadthSearch(parentValue, parentId);
-    } else if (this.data.name === parentValue) {
-      console.log("hit name", this);
+    // If we're directly adding to this node
+    if (!parentValue && !parentId) {
       parentNode = this;
-    } else if (this.data.id === parentId) {
-      console.log("hit id", this);
+    }
+    // If this is the node we're looking for
+    else if (this.data.name === parentValue || this.data.id === parentId) {
+      console.log("Found parent node directly", this);
       parentNode = this;
-    } else {
-      console.log("else", this);
-      parentNode = this.parent.findBreadthSearch(parentValue, parentId);
+    } 
+    // If this is the root node, search the entire tree
+    else if (this.parent === null) {
+      console.log("Searching from root");
+      // Try to find by ID first (more reliable)
+      if (parentId !== undefined) {
+        parentNode = this.findDepthSearch(undefined, parentId);
+      } 
+      // Fall back to name search
+      else if (parentValue !== undefined) {
+        parentNode = this.findDepthSearch(parentValue);
+      }
+    }
+    // If all else fails, search from this node's parent
+    else {
+      console.log("Searching from parent", this.parent);
+      // Try to find by ID first (more reliable)
+      if (parentId !== undefined) {
+        parentNode = this.parent.findDepthSearch(undefined, parentId);
+      }
+      // Fall back to name search
+      else if (parentValue !== undefined) {
+        parentNode = this.parent.findDepthSearch(parentValue);
+      }
     }
 
     if (parentNode) {
+      console.log("Found parent node", parentNode.data.name, parentNode.data.id);
       const newNode = new TreeNode(newValue);
       parentNode.addChild(newNode);
       return newNode;
     }
+    
     console.error("Could not find parent");
     return null;
   }
@@ -59,15 +96,15 @@ export class TreeNode {
   // removeSelf
 
   removeChild(nodeToRemove: TreeNode, preserveChildren: boolean): void {
-    const preservedParent = this.parent;
-
+    // Handle case where the node doesn't have a parent (e.g., root node)
     if (!this.parent) {
-      console.error("Cannot remove child of node with no parent");
+      console.warn("Cannot remove a node with no parent (possibly the root node)");
       return;
     }
 
+    const preservedParent = this.parent;
     const index = this.parent.children.findIndex((child) => {
-      return child.data.name === nodeToRemove.data.name;
+      return child.data.id === nodeToRemove.data.id; // Use ID for more reliable comparison
     });
 
     // -1 is returned if index is not found
@@ -83,6 +120,8 @@ export class TreeNode {
           preservedParent.children.push(child);
         }
       }
+    } else {
+      console.warn("Node not found in parent's children array");
     }
   }
 
@@ -198,6 +237,15 @@ export class TreeNode {
     }
     return nodeToObject(this);
   }
+
+  // New method to convert TreeNode to a plain object (for serialization)
+  toPlainObject(): any {
+    return {
+      data: this.data,
+      children: this.children.map(child => child.toPlainObject())
+      // We don't include parent to avoid circular references
+    };
+  }
 }
 
 // Definition for the tree node object returned by toObject()
@@ -228,6 +276,36 @@ export class Tree {
       }
       this.root = new TreeNode(rootValue as TreeNodeData, children, parent || null);
     }
+  }
+
+  // Static method to recreate a Tree from a plain object
+  static fromPlainObject(obj: any): Tree {
+    if (!obj || typeof obj !== 'object') {
+      throw new Error('Invalid object provided to Tree.fromPlainObject');
+    }
+    
+    // Create a new Tree instance
+    const tree = new Tree();
+    
+    // Restore tree properties
+    tree.id = obj.id !== undefined ? obj.id : classId++;
+    tree.childId = obj.childId !== undefined ? obj.childId : 0;
+    
+    // Reconstruct the tree structure
+    if (obj.root) {
+      tree.root = TreeNode.fromObject(obj.root, null);
+    }
+    
+    return tree;
+  }
+
+  // Convert Tree to a plain object for serialization
+  toPlainObject(): any {
+    return {
+      id: this.id,
+      childId: this.childId,
+      root: this.root.toPlainObject()
+    };
   }
 
   createChildId(): number {

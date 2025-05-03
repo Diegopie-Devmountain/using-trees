@@ -2,7 +2,7 @@ import Tree, { TreeNodeDatum } from 'react-d3-tree';
 import { useRef, useState } from 'react';
 import { BounceLoader } from 'react-spinners';
 import { v4 as uuidv4 } from 'uuid';
-import { Tree as TreeModel, TreeNode, TreeNodeData } from '../data/tree';
+import { Tree as TreeModel, TreeNode, TreeNodeData } from '../../data/tree';
 
 // Define the interface for the tree node data in our component context
 interface TreeNodeViewData {
@@ -30,18 +30,28 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
 
   const handleRemove = (preserveChildren: boolean = true): void => {
     if (selectedNode.current) {
+      // Check if the selected node is the root node
+      if (selectedNode.current === treeNode.root) {
+        console.warn("Cannot remove the root node of the tree");
+        // You could show a user-friendly message here
+        return;
+      }
+      
       selectedNode.current.removeChild(selectedNode.current, preserveChildren);
       setSetTreeData(treeNode.toObject());
+      
+      // Reset the selection since the node is now removed
+      selectedNode.current = null;
+      setCurrentNodeData(null);
     }
   }
 
   const handleAdd = (): void => {
     if (selectedNode.current) {
-      // Using a numbered ID to comply with TreeNodeData interface
-      selectedNode.current.createNode(
+      // Create a new node as a child of the selected node
+      treeNode.createNode(
         { 
-          // Generate a simple numeric ID instead of UUID
-          id: Date.now(), 
+          id: treeNode.createChildId(), 
           name: 'New Child', 
           description: 'new node' 
         }, 

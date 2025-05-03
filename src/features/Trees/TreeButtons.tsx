@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Tree, TreeNode } from "../data/tree";
+import { Tree, TreeNode } from "../../data/tree";
 
 interface TreeButtonsProps {
   buttonType: "remove" | "add" | "edit";
