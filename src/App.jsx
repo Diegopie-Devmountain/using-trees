@@ -8,7 +8,7 @@ import Sidebar from './layouts/Sidebar.jsx';
 
 function App() {
   const [trees, setTrees] = useState([empTree]);
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [sidebarColor, setSidebarColor] = useState('bg-green-50');
   const hamburgerRef = useRef(null);
 
@@ -46,9 +46,9 @@ function App() {
 
         {/* Main Content - adjust based on sidebar state */}
         <main className="flex-1 p-4 overflow-auto transition-all duration-300">
-          <section>
+          <div>
             {trees.map(tree => <TreeContainer key={tree.id} treeNode={tree} />)}
-          </section>
+          </div>
           <div className='mt-10 mx-16'>
             <button 
               onClick={handleCreateTree} 

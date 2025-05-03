@@ -38,8 +38,8 @@ export function TreeContainer({ treeNode }) {
   const [isEdit, setIsEdit] = useState(false);
 
   return (
-    <section className='flex flex-row justify-center mx-5 mt-10 h-[28rem]'>
-      <article id="" style={{ width: '40em', height: '28em', border: 'solid' }}>
+    <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4'>
+      <div id="" className="w-full lg:w-2/3" style={{ height: '28em', border: 'solid' }}>
         <Tree
           orientation='vertical'
           onNodeClick={(e) => {
@@ -59,9 +59,9 @@ export function TreeContainer({ treeNode }) {
           data={treeData}
           collapsible={false}
         />
-      </article>
-      <aside className='w-1/4 bg-cool-blue h-full overflow-auto'>
-        <h2 className='mb-4 font-mono text-lg font-semibold text-center mt-4'>Node Info</h2>
+      </div>
+      <aside className='w-full lg:w-1/3 bg-cool-blue p-4 rounded'>
+        <h2 className='mb-4 font-mono text-lg font-semibold text-center'>Node Info</h2>
         {isLoading ?
           <center className=''>
             <BounceLoader color='#ffa857' />
@@ -78,49 +78,63 @@ export function TreeContainer({ treeNode }) {
               </>
               :
               <>
-                <input className='border' type='text' value={name} onChange={(e) => setName(e.target.value)} />
-                <textarea className='border mt-6 h-28' value={description} onChange={(e) => setDescription(e.target.value)}>
-
-                </textarea>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <input 
+                    className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500' 
+                    type='text' 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea 
+                    className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-28 resize-none' 
+                    value={description} 
+                    onChange={(e) => setDescription(e.target.value)}
+                  ></textarea>
+                </div>
               </>
             }
-            <article className='flex gap-2 flex-wrap justify-center'>
-              <button
-                onClick={handleRemove}
-                className='btn lg:w-2/5 mt-5'
-              >Remove Node</button>
-              <button
-                onClick={() => handleRemove(false)}
-                className='btn lg:w-2/5 mt-5'
-              >Remove Branch</button>
-              <button
-                onClick={handleAdd}
-                className='btn lg:w-2/5 mt-5'
-              >Add Child</button>
+            <article className='grid grid-cols-1 md:grid-cols-2 gap-2'>
+              {!isEdit && (
+                <>
+                  <button
+                    onClick={handleRemove}
+                    className='btn w-full mt-5'
+                  >Remove Node</button>
+                  <button
+                    onClick={() => handleRemove(false)}
+                    className='btn w-full mt-5'
+                  >Remove Branch</button>
+                  <button
+                    onClick={handleAdd}
+                    className='btn w-full mt-5'
+                  >Add Child</button>
+                </>
+              )}
               {!isEdit ?
                 <button
                   onClick={() => setIsEdit(true)}
-                  className='btn lg:w-2/5 mt-5'
+                  className='btn w-full mt-5'
                 >Edit</button>
                 :
                 <button
                   onClick={handleSave}
-                  className='btn lg:w-2/5 mt-5'
+                  className='btn w-full mt-5'
                 >Save</button>
               }
             </article>
             <div className='mb-4'>
-              <h3 className='mt-8 mb-4 font-mono text-lg font-semibold text-center'>Children</h3>
+              <h3 className='mt-8 mb-4 font-mono text-lg font-semibold text-center'>
+                Children ({currentNodeData && currentNodeData.children ? currentNodeData.children.length : 0})
+              </h3>
               {
-                currentNodeData && currentNodeData.children.map(child => {
-                  return (
-                    <article key={child.__rd3t.id}>
-                      <p className='capitalize'>Name: {child.name}
-                        {/* <span>| id: {child.id}</span> */}
-                      </p>
-                    </article>
-                  )
-                })
+                currentNodeData && currentNodeData.children && 
+                  <p className='text-center'>
+                    {currentNodeData.children.map(child => child.name).join(', ')}
+                  </p>
               }
             </div>
           </article>
