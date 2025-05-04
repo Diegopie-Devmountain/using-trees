@@ -3,7 +3,7 @@ import { useRef, useState, useEffect } from 'react';
 import { BounceLoader } from 'react-spinners';
 import { v4 as uuidv4 } from 'uuid';
 import { Tree as TreeModel, TreeNode, TreeNodeData } from '../../data/tree';
-import { Dataset, TextDataset } from '../../data/dataset-collection';
+import { Dataset, TextDataset, ImageDataset, UrlDataset } from '../../data/dataset-collection';
 import { useWorkspace } from '../../context/WorkspaceContext';
 
 // Define the interface for the tree node data in our component context
@@ -29,15 +29,15 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const [name, setName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [datasets, setDatasets] = useState<Dataset[]>([]);
-  
-  // Dataset implementation type state is commented out as we're hiding this functionality
-  // const [datasetListType, setDatasetListType] = useState<'array' | 'linked_list'>('linked_list');
-
   const [treeData, setTreeData] = useState<TreeNodeViewData>(treeNode.toObject());
-
   const [currentNodeData, setCurrentNodeData] = useState<TreeNodeViewData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isEdit, setIsEdit] = useState<boolean>(false);
+  const [showAddDatasetModal, setShowAddDatasetModal] = useState<boolean>(false);
+  const [newDatasetType, setNewDatasetType] = useState<'text' | 'image' | 'url'>('text');
+  const [newDatasetTitle, setNewDatasetTitle] = useState<string>('');
+  const [newDatasetContent, setNewDatasetContent] = useState<string>('');
+  const [draggedDatasetId, setDraggedDatasetId] = useState<string | null>(null);
 
   // Extract description from datasets or return empty string
   const getDescriptionFromDatasets = (datasets: Dataset[]): string => {
@@ -118,13 +118,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
         selectedNode.current.createTextDataset('Description', description);
       }
       
-      // Commented out dataset implementation type change
-      /*
-      if (selectedNode.current.data.datasets.listType !== datasetListType) {
-        selectedNode.current.changeDatasetImplementation(datasetListType);
-      }
-      */
-      
       setTreeData(treeNode.toObject());
       
       // Save changes to localStorage
@@ -145,9 +138,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       const nodeDatasets = selectedNode.current.getDatasets();
       setDatasets(nodeDatasets);
       
-      // Commented out dataset list type setting
-      // setDatasetListType(selectedNode.current.data.datasets.listType);
-      
       // Setters
       setCurrentNodeData(nodeData.data as TreeNodeViewData);
       setName(selectedNode.current.data.name);
@@ -156,49 +146,270 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     setIsLoading(false);
   };
 
-  // Commented out the toggle dataset implementation function
-  /*
-  const toggleDatasetImplementation = async (): Promise<void> => {
-    if (selectedNode.current) {
-      const newType = selectedNode.current.data.datasets.listType === 'array' ? 'linked_list' : 'array';
-      selectedNode.current.changeDatasetImplementation(newType);
-      setDatasetListType(newType);
+  const handleAddDataset = () => {
+    if (!selectedNode.current) return;
+    
+    let newDataset: Dataset | null = null;
+    
+    if (newDatasetType === 'text') {
+      newDataset = selectedNode.current.createTextDataset(
+        newDatasetTitle, 
+        newDatasetContent
+      );
+    } else if (newDatasetType === 'image') {
+      newDataset = selectedNode.current.createImageDataset(
+        newDatasetTitle, 
+        newDatasetContent, 
+        ''
+      );
+    } else if (newDatasetType === 'url') {
+      newDataset = selectedNode.current.createUrlDataset(
+        newDatasetTitle, 
+        newDatasetContent, 
+        ''
+      );
+    }
+    
+    if (newDataset) {
+      setDatasets(selectedNode.current.getDatasets());
       setTreeData(treeNode.toObject());
+      saveTreeChanges();
       
-      // Save changes to localStorage
-      await saveTreeChanges();
+      // Reset form
+      setNewDatasetTitle('');
+      setNewDatasetContent('');
+      setShowAddDatasetModal(false);
     }
   };
-  */
+  
+  const handleDeleteDataset = (datasetId: string) => {
+    if (!selectedNode.current) return;
+    
+    selectedNode.current.deleteDataset(datasetId);
+    setDatasets(selectedNode.current.getDatasets());
+    setTreeData(treeNode.toObject());
+    saveTreeChanges();
+  };
+  
+  const handleDragStart = (datasetId: string) => {
+    setDraggedDatasetId(datasetId);
+  };
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+  
+  const handleDrop = (e: React.DragEvent, targetDatasetId: string) => {
+    e.preventDefault();
+    if (!draggedDatasetId || !selectedNode.current) return;
+    
+    // Find positions
+    const datasets = selectedNode.current.getDatasets();
+    const draggedIndex = datasets.findIndex(d => d.id === draggedDatasetId);
+    const targetIndex = datasets.findIndex(d => d.id === targetDatasetId);
+    
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+      // Reorder in the node
+      selectedNode.current.reorderDataset(draggedDatasetId, targetIndex);
+      
+      // Update UI
+      setDatasets(selectedNode.current.getDatasets());
+      setTreeData(treeNode.toObject());
+      saveTreeChanges();
+    }
+    
+    setDraggedDatasetId(null);
+  };
+
+  // Function to render dataset content based on type
+  const renderDatasetContent = (dataset: Dataset) => {
+    switch (dataset.type) {
+      case 'text':
+        return <p className="ml-8">{(dataset as TextDataset).content}</p>;
+      case 'image':
+        return (
+          <div className="ml-8 mt-2">
+            <img 
+              src={(dataset as ImageDataset).url} 
+              alt={(dataset as ImageDataset).altText || dataset.title} 
+              className="max-w-[180px] max-h-[120px] object-contain border border-gray-200" 
+            />
+          </div>
+        );
+      case 'url':
+        return (
+          <div className="ml-8 mt-1">
+            <a 
+              href={(dataset as UrlDataset).url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline break-all"
+            >
+              {(dataset as UrlDataset).url}
+            </a>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4'>
-      <div id="" className="w-full lg:w-2/3" style={{ height: '28em', border: 'solid' }}>
+    <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4 h-[calc(100vh-12rem)]'>
+      <div className="w-full lg:w-2/3 border border-gray-300 rounded overflow-hidden" style={{ height: '100%' }}>
         <Tree
           orientation='vertical'
           onNodeClick={handleNodeClick}
           data={treeData}
           collapsible={false}
+          translate={{ x: 250, y: 100 }}
         />
       </div>
-      <aside className='w-full lg:w-1/3 bg-cool-blue p-4 rounded'>
+      <aside className='w-full lg:w-1/3 bg-cool-blue p-4 rounded flex flex-col h-full max-h-full overflow-hidden'>
         <h2 className='mb-4 font-mono text-lg font-semibold text-center'>Node Info</h2>
         {isLoading ?
-          <center className=''>
+          <center className='my-auto'>
             <BounceLoader color='#ffa857' />
           </center>
           :
           currentNodeData &&
-          <article className='mx-8'>
+          <div className='flex flex-col h-full overflow-hidden'>
             {!isEdit ?
               <>
-                <p className='capitalize'>Name: {currentNodeData.name}
-                  {/* <span>| id: {currentNodeData.id}</span> */}
-                </p>
-                <p className='mt-3 capitalize text-sm'>{getDescriptionFromDatasets(currentNodeData.datasets.items)}</p>
-                {/* Commented out dataset implementation type display
-                <p className='mt-3 text-xs'>Dataset Implementation: <span className="font-mono">{currentNodeData.datasets.listType}</span></p>
-                */}
+                <p className='text-lg font-medium'>Name: {currentNodeData.name}</p>
+
+                {/* Datasets section - scrollable */}
+                <div className="mt-4 flex-grow overflow-y-auto">
+                  {currentNodeData.datasets.items.map((dataset) => (
+                    <div 
+                      key={dataset.id}
+                      draggable
+                      onDragStart={() => handleDragStart(dataset.id)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, dataset.id)}
+                      className="mb-6 cursor-move"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="text-gray-500 select-none">≡</div>
+                        <h3 className="font-medium">{dataset.title}</h3>
+                        <button 
+                          onClick={() => handleDeleteDataset(dataset.id)}
+                          className="ml-auto text-gray-500 hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {renderDatasetContent(dataset)}
+                    </div>
+                  ))}
+
+                  {/* Add dataset button */}
+                  <button 
+                    onClick={() => setShowAddDatasetModal(true)}
+                    className="flex items-center gap-2 mt-2 text-gray-600 hover:text-gray-800"
+                  >
+                    <span className="text-xl">+</span> Add dataset
+                  </button>
+
+                  {/* Add dataset modal */}
+                  {showAddDatasetModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                      <div className="bg-white p-6 rounded-lg w-96 max-w-full">
+                        <h3 className="text-lg font-medium mb-4">Add New Dataset</h3>
+                        
+                        <div className="mb-4">
+                          <label className="block mb-2 text-sm">Dataset Type</label>
+                          <select
+                            value={newDatasetType}
+                            onChange={(e) => setNewDatasetType(e.target.value as any)}
+                            className="w-full px-3 py-2 border rounded-md"
+                          >
+                            <option value="text">Text</option>
+                            <option value="image">Image</option>
+                            <option value="url">URL</option>
+                          </select>
+                        </div>
+                        
+                        <div className="mb-4">
+                          <label className="block mb-2 text-sm">Title</label>
+                          <input
+                            type="text"
+                            value={newDatasetTitle}
+                            onChange={(e) => setNewDatasetTitle(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-md"
+                            placeholder="Title"
+                          />
+                        </div>
+                        
+                        <div className="mb-4">
+                          <label className="block mb-2 text-sm">
+                            {newDatasetType === 'text' ? 'Content' : 
+                             newDatasetType === 'image' ? 'Image URL' : 'URL'}
+                          </label>
+                          {newDatasetType === 'text' ? (
+                            <textarea
+                              value={newDatasetContent}
+                              onChange={(e) => setNewDatasetContent(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-md h-24"
+                              placeholder="Enter text content"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={newDatasetContent}
+                              onChange={(e) => setNewDatasetContent(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-md"
+                              placeholder={newDatasetType === 'image' ? 'Enter image URL' : 'Enter URL'}
+                            />
+                          )}
+                        </div>
+                        
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setShowAddDatasetModal(false)}
+                            className="px-4 py-2 border rounded-md"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleAddDataset}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-md"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tree buttons - positioned at bottom */}
+                <div className="mt-auto pt-4 flex justify-between gap-2">
+                  <button
+                    onClick={() => handleRemove(true)}
+                    className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+                  >
+                    Remove Node
+                  </button>
+                  <button
+                    onClick={() => handleRemove(false)}
+                    className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+                  >
+                    Remove Branch
+                  </button>
+                  <button
+                    onClick={handleAdd}
+                    className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+                  >
+                    Add Child
+                  </button>
+                  <button
+                    onClick={() => setIsEdit(true)}
+                    className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+                  >
+                    Edit
+                  </button>
+                </div>
               </>
               :
               <>
@@ -219,83 +430,18 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                     onChange={(e) => setDescription(e.target.value)}
                   ></textarea>
                 </div>
-                {/* Commented out dataset implementation type selection
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Dataset Implementation</label>
-                  <select 
-                    className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500' 
-                    value={datasetListType}
-                    onChange={(e) => setDatasetListType(e.target.value as 'array' | 'linked_list')}
+                
+                <div className="mt-auto flex justify-end">
+                  <button
+                    onClick={handleSave}
+                    className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
                   >
-                    <option value="linked_list">Linked List</option>
-                    <option value="array">Array with Order</option>
-                  </select>
+                    Save
+                  </button>
                 </div>
-                */}
               </>
             }
-            <article className='grid grid-cols-1 md:grid-cols-2 gap-2'>
-              {!isEdit && (
-                <>
-                  <button
-                    onClick={() => handleRemove(true)}
-                    className='btn w-full mt-5'
-                  >Remove Node</button>
-                  <button
-                    onClick={() => handleRemove(false)}
-                    className='btn w-full mt-5'
-                  >Remove Branch</button>
-                  <button
-                    onClick={handleAdd}
-                    className='btn w-full mt-5'
-                  >Add Child</button>
-                  {/* Commented out toggle dataset type button
-                  <button
-                    onClick={toggleDatasetImplementation}
-                    className='btn w-full mt-5'
-                  >Toggle Dataset Type</button>
-                  */}
-                </>
-              )}
-              {!isEdit ?
-                <button
-                  onClick={() => setIsEdit(true)}
-                  className='btn w-full mt-5'
-                >Edit</button>
-                :
-                <button
-                  onClick={handleSave}
-                  className='btn w-full mt-5'
-                >Save</button>
-              }
-            </article>
-            <div className='mb-4'>
-              <h3 className='mt-8 mb-4 font-mono text-lg font-semibold text-center'>
-                Children ({currentNodeData && currentNodeData.children ? currentNodeData.children.length : 0})
-              </h3>
-              {
-                currentNodeData && currentNodeData.children && 
-                  <p className='text-center'>
-                    {currentNodeData.children.map((child: TreeNodeViewData) => child.name).join(', ')}
-                  </p>
-              }
-            </div>
-
-            {/* Commented out datasets list section 
-            <div className='mb-4'>
-              <h3 className='mt-8 mb-4 font-mono text-lg font-semibold text-center'>
-                Datasets ({currentNodeData.datasets.items.length})
-              </h3>
-              <ul className='text-sm'>
-                {currentNodeData.datasets.items.map((dataset, index) => (
-                  <li key={index} className='mb-2 p-2 bg-gray-100 rounded'>
-                    <strong>{dataset.title}</strong> ({dataset.type})
-                  </li>
-                ))}
-              </ul>
-            </div>
-            */}
-          </article>
+          </div>
         }
       </aside>
     </section>
