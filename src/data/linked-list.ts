@@ -1,5 +1,5 @@
 // Generic type to allow for different kinds of data in the linked list
-class Node<T> {
+export class Node<T> {
   data: T;
   next: Node<T> | null;
   previous: Node<T> | null;
@@ -11,7 +11,11 @@ class Node<T> {
   }
 }
 
-class LinkedList<T> {
+/**
+ * Base class for all linked list implementations
+ * Contains core functionality for manipulating a doubly-linked list
+ */
+export abstract class LinkedListBase<T> {
   head: Node<T> | null;
   tail: Node<T> | null;
 
@@ -67,8 +71,115 @@ class LinkedList<T> {
 
     return array;
   }
+  
+  /**
+   * Returns true if the list is empty (has no nodes)
+   */
+  isEmpty(): boolean {
+    return this.head === null;
+  }
+  
+  /**
+   * Inserts a node after the specified target node
+   * @param targetNode The node to insert after
+   * @param data The data for the new node
+   * @returns The newly inserted node
+   */
+  insertAfter(targetNode: Node<T>, data: T): Node<T> {
+    const newNode = new Node<T>(data);
+    
+    newNode.next = targetNode.next;
+    newNode.previous = targetNode;
+    
+    if (targetNode.next) {
+      targetNode.next.previous = newNode;
+    } else {
+      // Target was the tail
+      this.tail = newNode;
+    }
+    
+    targetNode.next = newNode;
+    
+    return newNode;
+  }
+  
+  /**
+   * Removes a specific node from the list
+   * @param node The node to remove
+   * @returns The removed node
+   */
+  removeNode(node: Node<T>): Node<T> {
+    if (node.previous) {
+      node.previous.next = node.next;
+    } else {
+      // Node is the head
+      this.head = node.next;
+    }
+    
+    if (node.next) {
+      node.next.previous = node.previous;
+    } else {
+      // Node is the tail
+      this.tail = node.previous;
+    }
+    
+    return node;
+  }
 }
 
+/**
+ * Standard linked list implementation
+ * Extends the base functionality with additional methods
+ */
+export class LinkedList<T> extends LinkedListBase<T> {
+  constructor() {
+    super();
+  }
+  
+  /**
+   * Adds a node to the beginning of the list
+   * @param data The data for the new node
+   * @returns The newly inserted node
+   */
+  prepend(data: T): Node<T> {
+    const newNode = new Node<T>(data);
+    
+    if (this.head === null) {
+      // List is empty
+      this.head = newNode;
+      this.tail = newNode;
+    } else {
+      newNode.next = this.head;
+      this.head.previous = newNode;
+      this.head = newNode;
+    }
+    
+    return newNode;
+  }
+  
+  /**
+   * Find the first node with matching data
+   * @param searchFunction Function that returns true when a match is found
+   * @returns The found node or null if not found
+   */
+  find(searchFunction: (data: T) => boolean): Node<T> | null {
+    let currentNode = this.head;
+    
+    while (currentNode !== null) {
+      if (searchFunction(currentNode.data)) {
+        return currentNode;
+      }
+      currentNode = currentNode.next;
+    }
+    
+    return null;
+  }
+}
+
+/**
+ * Queue implementation using a linked list
+ * Provides FIFO (First-In-First-Out) behavior
+ */
 export class Queue<T> extends LinkedList<T> {
   items: T[];
 
@@ -89,6 +200,6 @@ export class Queue<T> extends LinkedList<T> {
   }
 
   isEmpty(): boolean {
-    return this.head === null || this.items.length === 0;
+    return super.isEmpty() || this.items.length === 0;
   }
 }

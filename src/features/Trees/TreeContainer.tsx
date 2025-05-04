@@ -3,13 +3,18 @@ import { useRef, useState, useEffect } from 'react';
 import { BounceLoader } from 'react-spinners';
 import { v4 as uuidv4 } from 'uuid';
 import { Tree as TreeModel, TreeNode, TreeNodeData } from '../../data/tree';
+import { Dataset, TextDataset } from '../../data/dataset-collection';
 import { useWorkspace } from '../../context/WorkspaceContext';
 
 // Define the interface for the tree node data in our component context
 interface TreeNodeViewData {
-  id: number | string;
+  id: string;
   name: string;
-  description?: string;
+  nodeType?: string;
+  datasets: {
+    listType: 'array' | 'linked_list';
+    items: Dataset[];
+  };
   children?: TreeNodeViewData[];
 }
 
@@ -23,12 +28,25 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
 
   const [name, setName] = useState<string>('');
   const [description, setDescription] = useState<string>('');
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  
+  // Dataset implementation type state is commented out as we're hiding this functionality
+  // const [datasetListType, setDatasetListType] = useState<'array' | 'linked_list'>('linked_list');
 
-  const [treeData, setSetTreeData] = useState<TreeNodeViewData>(treeNode.toObject());
+  const [treeData, setTreeData] = useState<TreeNodeViewData>(treeNode.toObject());
 
   const [currentNodeData, setCurrentNodeData] = useState<TreeNodeViewData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isEdit, setIsEdit] = useState<boolean>(false);
+
+  // Extract description from datasets or return empty string
+  const getDescriptionFromDatasets = (datasets: Dataset[]): string => {
+    const descriptionDataset = datasets.find(
+      (dataset): dataset is TextDataset => 
+        dataset.type === 'text' && dataset.title === 'Description'
+    );
+    return descriptionDataset?.content || '';
+  };
 
   // Save tree to localStorage whenever it changes
   const saveTreeChanges = async () => {
@@ -49,7 +67,7 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       }
       
       selectedNode.current.removeChild(selectedNode.current, preserveChildren);
-      setSetTreeData(treeNode.toObject());
+      setTreeData(treeNode.toObject());
       
       // Save changes to localStorage
       await saveTreeChanges();
@@ -63,26 +81,51 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const handleAdd = async (): Promise<void> => {
     if (selectedNode.current) {
       // Create a new node as a child of the selected node
-      treeNode.createNode(
-        { 
-          id: treeNode.createChildId(), 
-          name: 'New Child', 
-          description: 'new node' 
-        }, 
+      const newNode = selectedNode.current.createNode(
+        { name: 'New Child' }, 
         undefined, 
-        selectedNode.current.data.id
+        selectedNode.current.id
       );
-      setSetTreeData(treeNode.toObject());
       
-      // Save changes to localStorage
-      await saveTreeChanges();
+      if (newNode) {
+        // Add a default description dataset
+        newNode.createTextDataset('Description', 'New node description');
+        setTreeData(treeNode.toObject());
+        
+        // Save changes to localStorage
+        await saveTreeChanges();
+      }
     }
   }
 
   const handleSave = async (): Promise<void> => {
     if (selectedNode.current) {
-      selectedNode.current.editNode({ name, description });
-      setSetTreeData(treeNode.toObject());
+      // Update the node name
+      selectedNode.current.data.name = name;
+      
+      // Find and update the description dataset, or create one if it doesn't exist
+      const descriptionDataset = selectedNode.current.getDatasets().find(
+        (dataset): dataset is TextDataset => 
+          dataset.type === 'text' && dataset.title === 'Description'
+      );
+      
+      if (descriptionDataset) {
+        selectedNode.current.updateDataset(descriptionDataset.id, {
+          ...descriptionDataset,
+          content: description
+        });
+      } else {
+        selectedNode.current.createTextDataset('Description', description);
+      }
+      
+      // Commented out dataset implementation type change
+      /*
+      if (selectedNode.current.data.datasets.listType !== datasetListType) {
+        selectedNode.current.changeDatasetImplementation(datasetListType);
+      }
+      */
+      
+      setTreeData(treeNode.toObject());
       
       // Save changes to localStorage
       await saveTreeChanges();
@@ -98,13 +141,35 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     if (selectedNode.current) {
       console.log(selectedNode.current.data.name);
       
+      // Get datasets
+      const nodeDatasets = selectedNode.current.getDatasets();
+      setDatasets(nodeDatasets);
+      
+      // Commented out dataset list type setting
+      // setDatasetListType(selectedNode.current.data.datasets.listType);
+      
       // Setters
-      setCurrentNodeData(nodeData.data);
+      setCurrentNodeData(nodeData.data as TreeNodeViewData);
       setName(selectedNode.current.data.name);
-      setDescription(selectedNode.current.data.description || '');
+      setDescription(getDescriptionFromDatasets(nodeDatasets));
     }
     setIsLoading(false);
   };
+
+  // Commented out the toggle dataset implementation function
+  /*
+  const toggleDatasetImplementation = async (): Promise<void> => {
+    if (selectedNode.current) {
+      const newType = selectedNode.current.data.datasets.listType === 'array' ? 'linked_list' : 'array';
+      selectedNode.current.changeDatasetImplementation(newType);
+      setDatasetListType(newType);
+      setTreeData(treeNode.toObject());
+      
+      // Save changes to localStorage
+      await saveTreeChanges();
+    }
+  };
+  */
 
   return (
     <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4'>
@@ -130,7 +195,10 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                 <p className='capitalize'>Name: {currentNodeData.name}
                   {/* <span>| id: {currentNodeData.id}</span> */}
                 </p>
-                <p className='mt-3 capitalize text-sm'>{currentNodeData.description}</p>
+                <p className='mt-3 capitalize text-sm'>{getDescriptionFromDatasets(currentNodeData.datasets.items)}</p>
+                {/* Commented out dataset implementation type display
+                <p className='mt-3 text-xs'>Dataset Implementation: <span className="font-mono">{currentNodeData.datasets.listType}</span></p>
+                */}
               </>
               :
               <>
@@ -151,6 +219,19 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                     onChange={(e) => setDescription(e.target.value)}
                   ></textarea>
                 </div>
+                {/* Commented out dataset implementation type selection
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Dataset Implementation</label>
+                  <select 
+                    className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500' 
+                    value={datasetListType}
+                    onChange={(e) => setDatasetListType(e.target.value as 'array' | 'linked_list')}
+                  >
+                    <option value="linked_list">Linked List</option>
+                    <option value="array">Array with Order</option>
+                  </select>
+                </div>
+                */}
               </>
             }
             <article className='grid grid-cols-1 md:grid-cols-2 gap-2'>
@@ -168,6 +249,12 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                     onClick={handleAdd}
                     className='btn w-full mt-5'
                   >Add Child</button>
+                  {/* Commented out toggle dataset type button
+                  <button
+                    onClick={toggleDatasetImplementation}
+                    className='btn w-full mt-5'
+                  >Toggle Dataset Type</button>
+                  */}
                 </>
               )}
               {!isEdit ?
@@ -193,6 +280,21 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                   </p>
               }
             </div>
+
+            {/* Commented out datasets list section 
+            <div className='mb-4'>
+              <h3 className='mt-8 mb-4 font-mono text-lg font-semibold text-center'>
+                Datasets ({currentNodeData.datasets.items.length})
+              </h3>
+              <ul className='text-sm'>
+                {currentNodeData.datasets.items.map((dataset, index) => (
+                  <li key={index} className='mb-2 p-2 bg-gray-100 rounded'>
+                    <strong>{dataset.title}</strong> ({dataset.type})
+                  </li>
+                ))}
+              </ul>
+            </div>
+            */}
           </article>
         }
       </aside>

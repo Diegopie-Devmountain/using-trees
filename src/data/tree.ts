@@ -1,41 +1,195 @@
 import { Queue } from "./linked-list";
 import { v4 as uuidv4 } from 'uuid';
-
-
+import { 
+  Dataset, TextDataset, ImageDataset, UrlDataset, 
+  OrderedDatasetCollection, createDatasetCollection 
+} from "./dataset-collection";
 
 // Define TypeScript interfaces for the data
 export interface TreeNodeData {
-  id: number;
   name: string;
-  description?: string;
-  [key: string]: any; // Allow for additional properties
+  nodeType?: string;
+  datasets: {
+    listType: 'array' | 'linked_list';
+    collection: OrderedDatasetCollection<Dataset>;
+  };
 }
 
 // Export the TreeNode class so it can be used by other files
 export class TreeNode {
-  data: TreeNodeData;
-  children: TreeNode[];
+  id: string;
+  type: string; 
   parent: TreeNode | null;
+  children: TreeNode[];
+  data: {
+    name: string;
+    datasets: {
+      listType: 'array' | 'linked_list';
+      collection: OrderedDatasetCollection<Dataset>;
+    }
+  };
 
-  constructor(data: TreeNodeData, children: TreeNode[] = [], parent: TreeNode | null = null) {
-    this.data = data;
-    this.children = children;
+  constructor(
+    id: string,
+    data: {name: string},
+    nodeType: string = 'default',
+    listType: 'array' | 'linked_list' = 'linked_list',
+    children: TreeNode[] = [], 
+    parent: TreeNode | null = null
+  ) {
+    this.id = id;
+    this.type = nodeType;
     this.parent = parent;
+    this.children = children;
+    
+    // Initialize data structure
+    this.data = {
+      name: data.name,
+      datasets: {
+        listType: listType,
+        collection: createDatasetCollection<Dataset>(listType)
+      }
+    };
+  }
+
+  // Dataset management methods
+  addDataset(dataset: Dataset): Dataset {
+    const result = this.data.datasets.collection.add(dataset);
+    return result.data;
+  }
+  
+  getDatasets(): Dataset[] {
+    return this.data.datasets.collection.getAll().map(item => item.data);
+  }
+  
+  getDataset(id: string): Dataset | null {
+    const result = this.data.datasets.collection.getById(id);
+    return result ? result.data : null;
+  }
+  
+  updateDataset(id: string, updates: Partial<Dataset>): boolean {
+    const existing = this.data.datasets.collection.getById(id);
+    if (!existing) return false;
+    
+    const updated = { ...existing.data, ...updates };
+    
+    // Remove and re-add to update
+    this.data.datasets.collection.remove(id);
+    this.data.datasets.collection.add(updated);
+    return true;
+  }
+  
+  deleteDataset(id: string): boolean {
+    return this.data.datasets.collection.remove(id);
+  }
+  
+  reorderDataset(id: string, newPosition: number): boolean {
+    return this.data.datasets.collection.reorder(id, newPosition);
+  }
+  
+  changeDatasetImplementation(newType: 'array' | 'linked_list'): void {
+    if (this.data.datasets.listType === newType) return;
+    
+    // Get current datasets
+    const currentDatasets = this.getDatasets();
+    
+    // Create new collection
+    this.data.datasets.listType = newType;
+    this.data.datasets.collection = createDatasetCollection<Dataset>(newType);
+    
+    // Migrate existing datasets
+    currentDatasets.forEach(dataset => {
+      this.data.datasets.collection.add(dataset);
+    });
+  }
+  
+  // Helper methods for creating specific dataset types
+  createTextDataset(title: string, content: string = ''): TextDataset {
+    const dataset: TextDataset = {
+      type: 'text',
+      title,
+      content
+    };
+    return this.addDataset(dataset) as TextDataset;
+  }
+  
+  createImageDataset(title: string, url: string = '', altText: string = ''): ImageDataset {
+    const dataset: ImageDataset = {
+      type: 'image',
+      title,
+      url,
+      altText
+    };
+    return this.addDataset(dataset) as ImageDataset;
+  }
+  
+  createUrlDataset(title: string, url: string = '', description: string = ''): UrlDataset {
+    const dataset: UrlDataset = {
+      type: 'url',
+      title,
+      url,
+      description
+    };
+    return this.addDataset(dataset) as UrlDataset;
   }
 
   // Static method to recreate a TreeNode from a plain object
   static fromObject(obj: any, parent: TreeNode | null = null): TreeNode {
-    // Create the node with its data
-    const node = new TreeNode(obj.data, [], parent);
-    
-    // Recursively recreate children
-    if (obj.children && Array.isArray(obj.children)) {
-      node.children = obj.children.map((childObj: any) => 
-        TreeNode.fromObject(childObj, node)
+    // Handle legacy format or new format
+    if (obj.id && obj.type) {
+      // New format with separate id and type
+      const node = new TreeNode(
+        obj.id,
+        { name: obj.data.name },
+        obj.type,
+        obj.data.datasets.listType || 'linked_list',
+        [],
+        parent
       );
+      
+      // Reconstruct datasets
+      if (obj.data.datasets) {
+        // Create dataset collection using the specified type
+        node.data.datasets.listType = obj.data.datasets.listType || 'linked_list';
+        node.data.datasets.collection = createDatasetCollection<Dataset>(node.data.datasets.listType);
+        
+        // Add datasets to the collection
+        if (Array.isArray(obj.data.datasets.items)) {
+          obj.data.datasets.items.forEach((dataset: Dataset) => {
+            node.data.datasets.collection.add(dataset);
+          });
+        }
+      }
+      
+      // Recursively reconstruct children
+      if (obj.children && Array.isArray(obj.children)) {
+        node.children = obj.children.map((childObj: any) => 
+          TreeNode.fromObject(childObj, node)
+        );
+      }
+      
+      return node;
+    } else {
+      // Legacy format - data contains id
+      const nodeData = obj.data || obj;
+      const node = new TreeNode(
+        nodeData.id,
+        { name: nodeData.name },
+        'default',
+        'linked_list',
+        [],
+        parent
+      );
+      
+      // Recursively reconstruct children
+      if (obj.children && Array.isArray(obj.children)) {
+        node.children = obj.children.map((childObj: any) => 
+          TreeNode.fromObject(childObj, node)
+        );
+      }
+      
+      return node;
     }
-    
-    return node;
   }
 
   // Manage Nodes
@@ -44,7 +198,7 @@ export class TreeNode {
     this.children.push(childNode);
   }
 
-  createNode(newValue: TreeNodeData, parentValue?: string, parentId?: number): TreeNode | null {
+  createNode(newValue: {name: string}, parentValue?: string, parentId?: string): TreeNode | null {
     console.log("create", newValue, parentValue, parentId);
 
     let parentNode: TreeNode | null = null;
@@ -54,7 +208,7 @@ export class TreeNode {
       parentNode = this;
     }
     // If this is the node we're looking for
-    else if (this.data.name === parentValue || this.data.id === parentId) {
+    else if (this.data.name === parentValue || this.id === parentId) {
       console.log("Found parent node directly", this);
       parentNode = this;
     } 
@@ -84,8 +238,13 @@ export class TreeNode {
     }
 
     if (parentNode) {
-      console.log("Found parent node", parentNode.data.name, parentNode.data.id);
-      const newNode = new TreeNode(newValue);
+      console.log("Found parent node", parentNode.data.name, parentNode.id);
+      const newNode = new TreeNode(
+        uuidv4(), 
+        { name: newValue.name },
+        'default',
+        'linked_list'
+      );
       parentNode.addChild(newNode);
       return newNode;
     }
@@ -105,7 +264,7 @@ export class TreeNode {
 
     const preservedParent = this.parent;
     const index = this.parent.children.findIndex((child) => {
-      return child.data.id === nodeToRemove.data.id; // Use ID for more reliable comparison
+      return child.id === nodeToRemove.id; // Use ID for more reliable comparison
     });
 
     // -1 is returned if index is not found
@@ -126,7 +285,7 @@ export class TreeNode {
     }
   }
 
-  editNode(newData: Partial<TreeNodeData>, nodeValue?: string, nodeId?: number): TreeNode | null {
+  editNode(newData: Partial<TreeNodeData>, nodeValue?: string, nodeId?: string): TreeNode | null {
     let nodeToEdit: TreeNode | null = null;
 
     if (!nodeValue && !nodeId) {
@@ -145,7 +304,7 @@ export class TreeNode {
   }
 
   // Search Algo
-  findBreadthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
+  findBreadthSearch(nodeName?: string, nodeId?: string, startingNode?: TreeNode): TreeNode | null {
     console.log("find", nodeName, nodeId);
 
     // Search by name or id
@@ -166,7 +325,10 @@ export class TreeNode {
 
       let current = queue.dequeue(); // removes 1st item
 
-      if (current.data[keyToUse] === dataToFind) {
+      // Check if we found the node
+      if (keyToUse === "name" && current.data.name === dataToFind) {
+        return current;
+      } else if (keyToUse === "id" && current.id === dataToFind) {
         return current;
       }
 
@@ -177,7 +339,7 @@ export class TreeNode {
     return null;
   }
 
-  findDepthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
+  findDepthSearch(nodeName?: string, nodeId?: string, startingNode?: TreeNode): TreeNode | null {
     // Search by name or id
     const dataToFind = nodeName || nodeId;
     const keyToUse = nodeName ? "name" : "id";
@@ -195,7 +357,10 @@ export class TreeNode {
       
       if (!currentNode) continue;
 
-      if (currentNode.data[keyToUse] === dataToFind) {
+      // Check if we found the node
+      if (keyToUse === "name" && currentNode.data.name === dataToFind) {
+        return currentNode;
+      } else if (keyToUse === "id" && currentNode.id === dataToFind) {
         return currentNode;
       }
 
@@ -207,8 +372,8 @@ export class TreeNode {
     return null; // if not found
   }
 
-  recursiveDepthSearch(nodeId: number | string, currentNode: TreeNode = this): TreeNode | null {
-    if (currentNode.data.id === nodeId) {
+  recursiveDepthSearch(nodeId: string, currentNode: TreeNode = this): TreeNode | null {
+    if (currentNode.id === nodeId) {
       return currentNode;
     }
 
@@ -230,9 +395,13 @@ export class TreeNode {
   toObject(): TreeNodeObject {
     function nodeToObject(node: TreeNode): TreeNodeObject {
       return {
-        id: node.data.id,
+        id: node.id,
         name: node.data.name,
-        description: node.data.description || '',
+        nodeType: node.type,
+        datasets: {
+          listType: node.data.datasets.listType,
+          items: node.getDatasets()
+        },
         children: node.children.map((child) => nodeToObject(child)),
       };
     }
@@ -242,7 +411,15 @@ export class TreeNode {
   // New method to convert TreeNode to a plain object (for serialization)
   toPlainObject(): any {
     return {
-      data: this.data,
+      id: this.id,
+      type: this.type,
+      data: {
+        name: this.data.name,
+        datasets: {
+          listType: this.data.datasets.listType,
+          items: this.getDatasets()
+        }
+      },
       children: this.children.map(child => child.toPlainObject())
       // We don't include parent to avoid circular references
     };
@@ -251,31 +428,32 @@ export class TreeNode {
 
 // Definition for the tree node object returned by toObject()
 export interface TreeNodeObject {
-  id: number;
+  id: string;
   name: string;
-  description: string;
+  nodeType?: string;
+  datasets: {
+    listType: 'array' | 'linked_list';
+    items: Dataset[];
+  };
   children: TreeNodeObject[];
 }
 
 export class Tree {
-  id: number = uuidv4();
-  childId: number = 0;
+  id: string = uuidv4();
+  childIdCounter: number = 0;
   root: TreeNode;
 
-  constructor(
-    rootValue: TreeNodeData | TreeNode = { name: "New Tree", id: 0 },
-    children?: TreeNode[],
-    parent?: TreeNode | null
-  ) {
-    console.log(rootValue instanceof TreeNode);
-
-    if (rootValue instanceof TreeNode) {
-      this.root = rootValue;
+  constructor(rootNode?: TreeNode) {
+    if (rootNode instanceof TreeNode) {
+      this.root = rootNode;
     } else {
-      if (typeof rootValue === 'object' && 'id' in rootValue === false) {
-        (rootValue as TreeNodeData).id = this.createChildId();
-      }
-      this.root = new TreeNode(rootValue as TreeNodeData, children, parent || null);
+      // Create a default root node
+      this.root = new TreeNode(
+        uuidv4(),
+        { name: "New Tree" },
+        'default',
+        'linked_list'
+      );
     }
   }
 
@@ -290,7 +468,7 @@ export class Tree {
     
     // Restore tree properties - use the exact ID from the saved object
     tree.id = obj.id;
-    tree.childId = obj.childId !== undefined ? obj.childId : 0;
+    tree.childIdCounter = obj.childIdCounter !== undefined ? obj.childIdCounter : 0;
     
     // Reconstruct the tree structure
     if (obj.root) {
@@ -304,16 +482,17 @@ export class Tree {
   toPlainObject(): any {
     return {
       id: this.id,
-      childId: this.childId,
+      childIdCounter: this.childIdCounter,
       root: this.root.toPlainObject()
     };
   }
 
-  createChildId(): number {
-    return this.childId++;
+  createChildId(): string {
+    // Use UUIDs for node IDs
+    return uuidv4();
   }
 
-  createNode(newValue: TreeNodeData, parentValue?: string, parentId?: number): TreeNode | null {
+  createNode(newValue: TreeNodeData, parentValue?: string, parentId?: string): TreeNode | null {
     return this.root.createNode(newValue, parentValue, parentId);
   }
 
@@ -321,20 +500,20 @@ export class Tree {
     return this.root.removeChild(nodeToRemove, preserveChildren);
   }
 
-  editNode(newData: Partial<TreeNodeData>, nodeValue?: string, nodeId?: number): TreeNode | null {
+  editNode(newData: Partial<TreeNodeData>, nodeValue?: string, nodeId?: string): TreeNode | null {
     return this.root.editNode(newData, nodeValue, nodeId);
   }
 
-  findBreadthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
+  findBreadthSearch(nodeName?: string, nodeId?: string, startingNode?: TreeNode): TreeNode | null {
     // Search by name or id
     return this.root.findBreadthSearch(nodeName, nodeId, startingNode);
   }
 
-  findDepthSearch(nodeName?: string, nodeId?: number, startingNode?: TreeNode): TreeNode | null {
+  findDepthSearch(nodeName?: string, nodeId?: string, startingNode?: TreeNode): TreeNode | null {
     return this.root.findDepthSearch(nodeName, nodeId, startingNode);
   }
 
-  recursiveDepthSearch(nodeId: number | string, currentNode: TreeNode = this.root): TreeNode | null {
+  recursiveDepthSearch(nodeId: string, currentNode: TreeNode = this.root): TreeNode | null {
     return this.root.recursiveDepthSearch(nodeId, currentNode);
   }
 
@@ -347,155 +526,108 @@ export class Tree {
   }
 }
 
-const tree = new Tree({ id: 0, name: "root" });
-// console.log(tree);
+// Demo tree with UUID strings
+const tree = new Tree();
 
-// console.log(tree.createNode({ id: 1, name: "child1" }, "root"));
-// console.log(tree.createNode({ id: 2, name: "child2" }, "root"));
-// console.log(tree.createNode({ id: 3, name: "child3" }, "child1"));
-// console.log(tree.createNode({ id: 4, name: "child4" }, "child1"));
-// console.log(tree.createNode({ id: 5, name: "child5" }, "child2"));
+// Helper function to create a node with initial text dataset
+function createNodeWithDescription(name: string, description: string): TreeNode {
+  const node = new TreeNode(
+    uuidv4(),
+    { name },
+    'default',
+    'linked_list'
+  );
+  
+  // Add the description as a text dataset
+  node.createTextDataset("Description", description);
+  
+  return node;
+}
 
-// console.log("END FIRST TREE");
-
-const kyo = new TreeNode({
-  id: 1,
-  name: "kyo",
-  description:
-    "Systems Engineer responsible for maintaining and optimizing life support and communications systems on Mars.",
-});
-
-const dawa = new TreeNode(
-  {
-    id: 2,
-    name: "dawa",
-    description:
-      "Lead Biologist overseeing agricultural experiments and food production in the Martian colony.",
-  },
-  [
-    new TreeNode({
-      id: 3,
-      name: "seamus",
-      description:
-        "Assistant Biologist working on soil enrichment and crop sustainability in the Martian environment.",
-    }),
-    new TreeNode({
-      id: 4,
-      name: "harlow",
-      description:
-        "Hydrologist managing water resources, including extraction and recycling systems.",
-    }),
-  ]
+// Update demo tree using the helper function
+const kyo = createNodeWithDescription(
+  "kyo",
+  "Systems Engineer responsible for maintaining and optimizing life support and communications systems on Mars."
 );
 
-dawa.children.forEach((child) => {
-  child.parent = dawa;
-});
-
-const riley = new TreeNode(
-  {
-    id: 5,
-    name: "riley",
-    description:
-      "Chief Medical Officer overseeing the health and well-being of all Martian colonists.",
-  },
-  [
-    new TreeNode({
-      id: 6,
-      name: "les",
-      description:
-        "Surgeon specialized in emergency procedures and trauma care for Martian settlers.",
-    }),
-    new TreeNode({
-      id: 7,
-      name: "endi",
-      description:
-        "Psychologist providing mental health support and counseling to colony members.",
-    }),
-  ]
+const seamus = createNodeWithDescription(
+  "seamus",
+  "Assistant Biologist working on soil enrichment and crop sustainability in the Martian environment."
 );
 
-riley.children.forEach((child) => {
-  child.parent = riley;
-});
-
-const mien = new TreeNode(
-  {
-    id: 8,
-    name: "mien",
-    description:
-      "Chief Engineer responsible for infrastructure maintenance and new construction projects on Mars.",
-  },
-  [
-    new TreeNode({
-      id: 9,
-      name: "isi",
-      description:
-        "Mechanical Engineer focusing on vehicle and machinery maintenance in the harsh Martian environment.",
-    }),
-  ]
+const harlow = createNodeWithDescription(
+  "harlow",
+  "Hydrologist managing water resources, including extraction and recycling systems."
 );
 
-mien.children.forEach((child) => {
-  child.parent = mien;
-});
+// Create dawa and add children
+const dawa = createNodeWithDescription(
+  "dawa",
+  "Lead Biologist overseeing agricultural experiments and food production in the Martian colony."
+);
+dawa.addChild(seamus);
+dawa.addChild(harlow);
 
-const taylor = new TreeNode(
-  {
-    id: 10,
-    name: "taylor",
-    description:
-      "Chief of Security, ensuring the safety of all colonists and protecting the base from external threats.",
-  },
-  [kyo]
+const les = createNodeWithDescription(
+  "les",
+  "Surgeon specialized in emergency procedures and trauma care for Martian settlers."
 );
 
-taylor.children.forEach((child) => {
-  child.parent = taylor;
-});
-
-const zuza = new TreeNode(
-  {
-    id: 11,
-    name: "zuza",
-    description:
-      "Head of Research, leading scientific studies and experiments to expand Martian knowledge.",
-  },
-  [dawa, riley]
+const endi = createNodeWithDescription(
+  "endi",
+  "Psychologist providing mental health support and counseling to colony members."
 );
 
-zuza.children.forEach((child) => {
-  child.parent = zuza;
-});
+// Create riley and add children
+const riley = createNodeWithDescription(
+  "riley",
+  "Chief Medical Officer overseeing the health and well-being of all Martian colonists."
+);
+riley.addChild(les);
+riley.addChild(endi);
 
-const rachna = new TreeNode(
-  {
-    id: 12,
-    name: "rachna",
-    description:
-      "Operations Manager, overseeing daily activities and logistics within the Martian colony.",
-  },
-  [mien]
+const isi = createNodeWithDescription(
+  "isi",
+  "Mechanical Engineer focusing on vehicle and machinery maintenance in the harsh Martian environment."
 );
 
-rachna.children.forEach((child) => {
-  child.parent = rachna;
-});
-
-const morgan = new TreeNode(
-  {
-    id: 13,
-    name: "morgan",
-    description:
-      "Chief Officer of Lunar Operations, overseeing all activities related to lunar missions and base management on Mars.",
-  },
-  [taylor, zuza, rachna]
+// Create mien and add child
+const mien = createNodeWithDescription(
+  "mien",
+  "Chief Engineer responsible for infrastructure maintenance and new construction projects on Mars."
 );
+mien.addChild(isi);
 
-morgan.children.forEach((child) => {
-  child.parent = morgan;
-});
+// Create taylor and add child
+const taylor = createNodeWithDescription(
+  "taylor",
+  "Chief of Security, ensuring the safety of all colonists and protecting the base from external threats."
+);
+taylor.addChild(kyo);
 
+// Create zuza and add children
+const zuza = createNodeWithDescription(
+  "zuza",
+  "Head of Research, leading scientific studies and experiments to expand Martian knowledge."
+);
+zuza.addChild(dawa);
+zuza.addChild(riley);
+
+// Create rachna and add child
+const rachna = createNodeWithDescription(
+  "rachna",
+  "Operations Manager, overseeing daily activities and logistics within the Martian colony."
+);
+rachna.addChild(mien);
+
+// Create morgan (root node) and add children
+const morgan = createNodeWithDescription(
+  "morgan",
+  "Chief Officer of Lunar Operations, overseeing all activities related to lunar missions and base management on Mars."
+);
+morgan.addChild(taylor);
+morgan.addChild(zuza);
+morgan.addChild(rachna);
+
+// Create the employee tree with morgan as the root
 export const empTree = new Tree(morgan);
-
-// console.log("Init search: ", empTree.recursiveDepthSearch("riley"));
