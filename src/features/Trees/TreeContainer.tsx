@@ -1,3 +1,4 @@
+import React from "react";
 import Tree, { TreeNodeDatum } from "react-d3-tree";
 import { useRef, useState, useEffect } from "react";
 import { BounceLoader } from "react-spinners";
@@ -7,6 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import type { Components } from "react-markdown/lib/ast-to-react";
 import {
   Dataset,
   TextDataset,
@@ -14,7 +16,6 @@ import {
   UrlDataset,
 } from "../../data/dataset-collection";
 import { useWorkspace } from "../../context/WorkspaceContext";
-import { Components } from "react-markdown";
 
 // Define custom types for ReactMarkdown code component props
 interface CodeProps {
@@ -468,7 +469,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const renderDatasetContent = (dataset: Dataset) => {
     switch (dataset.type) {
       case "text":
-        console.log("Rendering markdown:", (dataset as TextDataset).content);
         return (
           <div className="ml-8 markdown-content">
             <ReactMarkdown 
@@ -487,7 +487,18 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                 li: ({node, ...props}) => <li className="ml-2 my-1" {...props} />,
                 
                 // Paragraphs and text
-                p: ({node, ...props}) => <p className="my-2" {...props} />,
+                // Fix DOM nesting issue by checking if children contain code blocks
+                p: ({node, children, ...props}) => {
+                  // Check if children contains a SyntaxHighlighter component
+                  const hasCodeBlock = React.Children.toArray(children).some(
+                    child => React.isValidElement(child) && child.type === SyntaxHighlighter
+                  );
+                  
+                  // If there's a code block, use a div instead of p to avoid nesting violation
+                  return hasCodeBlock ? 
+                    <div className="my-2" {...props}>{children}</div> : 
+                    <p className="my-2" {...props}>{children}</p>;
+                },
                 em: ({node, ...props}) => <em className="italic" {...props} />,
                 strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                 del: ({node, ...props}) => <del className="line-through" {...props} />,
