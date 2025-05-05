@@ -5,6 +5,7 @@ import { LinkedListBase, Node } from './linked-list';
  * Interface for dataset types that will be stored in collections
  */
 export interface Dataset {
+  id: string
   type: string;
   title: string;
   [key: string]: any;

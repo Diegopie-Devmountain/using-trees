@@ -54,8 +54,53 @@ export class TreeNode {
 
   // Dataset management methods
   addDataset(dataset: Dataset): Dataset {
+    // Ensure the dataset has an ID before adding it
+    if (!dataset.id) {
+      dataset.id = uuidv4();
+    }
     const result = this.data.datasets.collection.add(dataset);
     return result.data;
+  }
+  
+  // New unified method to create datasets of any type
+  createDataset(type: 'text' | 'image' | 'url', title: string, content: string = '', options: any = {}): Dataset {
+    // Create a dataset object with ID already assigned
+    let dataset: Dataset = {
+      id: uuidv4(),
+      type,
+      title
+    };
+    
+    // Add type-specific properties
+    switch(type) {
+      case 'text':
+        (dataset as TextDataset).content = content;
+        break;
+      case 'image':
+        (dataset as ImageDataset).url = content;
+        (dataset as ImageDataset).altText = options.altText || '';
+        break;
+      case 'url':
+        (dataset as UrlDataset).url = content;
+        (dataset as UrlDataset).description = options.description || '';
+        break;
+    }
+    
+    // Add the dataset to the collection
+    return this.addDataset(dataset);
+  }
+  
+  // Helper methods for creating specific dataset types - now using the unified method
+  createTextDataset(title: string, content: string = ''): TextDataset {
+    return this.createDataset('text', title, content) as TextDataset;
+  }
+  
+  createImageDataset(title: string, url: string = '', altText: string = ''): ImageDataset {
+    return this.createDataset('image', title, url, { altText }) as ImageDataset;
+  }
+  
+  createUrlDataset(title: string, url: string = '', description: string = ''): UrlDataset {
+    return this.createDataset('url', title, url, { description }) as UrlDataset;
   }
   
   getDatasets(): Dataset[] {
@@ -103,36 +148,6 @@ export class TreeNode {
     });
   }
   
-  // Helper methods for creating specific dataset types
-  createTextDataset(title: string, content: string = ''): TextDataset {
-    const dataset: TextDataset = {
-      type: 'text',
-      title,
-      content
-    };
-    return this.addDataset(dataset) as TextDataset;
-  }
-  
-  createImageDataset(title: string, url: string = '', altText: string = ''): ImageDataset {
-    const dataset: ImageDataset = {
-      type: 'image',
-      title,
-      url,
-      altText
-    };
-    return this.addDataset(dataset) as ImageDataset;
-  }
-  
-  createUrlDataset(title: string, url: string = '', description: string = ''): UrlDataset {
-    const dataset: UrlDataset = {
-      type: 'url',
-      title,
-      url,
-      description
-    };
-    return this.addDataset(dataset) as UrlDataset;
-  }
-
   // Static method to recreate a TreeNode from a plain object
   static fromObject(obj: any, parent: TreeNode | null = null): TreeNode {
     // Handle legacy format or new format
@@ -394,13 +409,22 @@ export class TreeNode {
 
   toObject(): TreeNodeObject {
     function nodeToObject(node: TreeNode): TreeNodeObject {
+      // Get the raw dataset items with their IDs preserved
+      const datasetItems = node.data.datasets.collection.getAll().map(item => {
+        // Ensure each dataset has an id property by including the id from OrderedItemWithId
+        return {
+          ...item.data,
+          id: item.id
+        };
+      });
+
       return {
         id: node.id,
         name: node.data.name,
         nodeType: node.type,
         datasets: {
           listType: node.data.datasets.listType,
-          items: node.getDatasets()
+          items: datasetItems
         },
         children: node.children.map((child) => nodeToObject(child)),
       };

@@ -27,7 +27,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const selectedNode = useRef<TreeNode | null>(null);
 
   const [name, setName] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [treeData, setTreeData] = useState<TreeNodeViewData>(treeNode.toObject());
   const [currentNodeData, setCurrentNodeData] = useState<TreeNodeViewData | null>(null);
@@ -103,21 +102,7 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       // Update the node name
       selectedNode.current.data.name = name;
       
-      // Find and update the description dataset, or create one if it doesn't exist
-      const descriptionDataset = selectedNode.current.getDatasets().find(
-        (dataset): dataset is TextDataset => 
-          dataset.type === 'text' && dataset.title === 'Description'
-      );
-      
-      if (descriptionDataset) {
-        selectedNode.current.updateDataset(descriptionDataset.id, {
-          ...descriptionDataset,
-          content: description
-        });
-      } else {
-        selectedNode.current.createTextDataset('Description', description);
-      }
-      
+      // No longer updating description directly since we manage datasets separately
       setTreeData(treeNode.toObject());
       
       // Save changes to localStorage
@@ -141,7 +126,7 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       // Setters
       setCurrentNodeData(nodeData.data as TreeNodeViewData);
       setName(selectedNode.current.data.name);
-      setDescription(getDescriptionFromDatasets(nodeDatasets));
+      // Description setter removed
     }
     setIsLoading(false);
   };
@@ -171,8 +156,28 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     }
     
     if (newDataset) {
-      setDatasets(selectedNode.current.getDatasets());
-      setTreeData(treeNode.toObject());
+      // Update local datasets state
+      const updatedDatasets = selectedNode.current.getDatasets();
+      setDatasets(updatedDatasets);
+      console.log(newDataset)
+      
+      // Update tree data
+      const updatedTreeData = treeNode.toObject();
+      setTreeData(updatedTreeData);
+      
+      // Update current node data to reflect the new dataset
+      if (selectedNode.current && currentNodeData) {
+        const updatedNodeData = {
+          ...currentNodeData,
+          datasets: {
+            listType: currentNodeData.datasets.listType,
+            items: updatedDatasets
+          }
+        };
+        setCurrentNodeData(updatedNodeData);
+      }
+      
+      // Save changes
       saveTreeChanges();
       
       // Reset form
@@ -182,13 +187,41 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     }
   };
   
+  // Simplified dataset deletion function
   const handleDeleteDataset = (datasetId: string) => {
+    console.log(datasetId);
+    
+    console.log(!selectedNode.current);
+    
     if (!selectedNode.current) return;
     
-    selectedNode.current.deleteDataset(datasetId);
-    setDatasets(selectedNode.current.getDatasets());
-    setTreeData(treeNode.toObject());
-    saveTreeChanges();
+    // Simply delete the dataset without special handling
+    const success = selectedNode.current.deleteDataset(datasetId);
+    
+    if (success) {
+      // Update local datasets state
+      const updatedDatasets = selectedNode.current.getDatasets();
+      setDatasets(updatedDatasets);
+      
+      // Update tree data
+      const updatedTreeData = treeNode.toObject();
+      setTreeData(updatedTreeData);
+      
+      // Update current node data
+      if (currentNodeData) {
+        const updatedNodeData = {
+          ...currentNodeData,
+          datasets: {
+            listType: currentNodeData.datasets.listType,
+            items: updatedDatasets
+          }
+        };
+        setCurrentNodeData(updatedNodeData);
+      }
+      
+      // Save changes
+      saveTreeChanges();
+    }
   };
   
   const handleDragStart = (datasetId: string) => {
@@ -212,9 +245,27 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       // Reorder in the node
       selectedNode.current.reorderDataset(draggedDatasetId, targetIndex);
       
-      // Update UI
-      setDatasets(selectedNode.current.getDatasets());
-      setTreeData(treeNode.toObject());
+      // Update local datasets state
+      const updatedDatasets = selectedNode.current.getDatasets();
+      setDatasets(updatedDatasets);
+      
+      // Update tree data
+      const updatedTreeData = treeNode.toObject();
+      setTreeData(updatedTreeData);
+      
+      // Update current node data to reflect the reordered datasets
+      if (selectedNode.current && currentNodeData) {
+        const updatedNodeData = {
+          ...currentNodeData,
+          datasets: {
+            listType: currentNodeData.datasets.listType,
+            items: updatedDatasets
+          }
+        };
+        setCurrentNodeData(updatedNodeData);
+      }
+      
+      // Save changes
       saveTreeChanges();
     }
     
@@ -280,9 +331,11 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
 
                 {/* Datasets section - scrollable */}
                 <div className="mt-4 flex-grow overflow-y-auto">
-                  {currentNodeData.datasets.items.map((dataset) => (
+                  {currentNodeData.datasets.items.map((dataset) => {
+                    console.log("Dataset in render:", dataset);
+                    return (
                     <div 
-                      key={dataset.id}
+                      key={dataset.id} // This is likely undefined
                       draggable
                       onDragStart={() => handleDragStart(dataset.id)}
                       onDragOver={handleDragOver}
@@ -293,20 +346,25 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                         <div className="text-gray-500 select-none">≡</div>
                         <h3 className="font-medium">{dataset.title}</h3>
                         <button 
-                          onClick={() => handleDeleteDataset(dataset.id)}
+                          onClick={() => {
+                            console.log("Delete clicked, dataset:", dataset);
+                            handleDeleteDataset(dataset.id);
+                          }}
                           className="ml-auto text-gray-500 hover:text-red-500"
+                          aria-label='Delete dataset'
                         >
                           ×
                         </button>
                       </div>
                       {renderDatasetContent(dataset)}
                     </div>
-                  ))}
+                  )})}
 
                   {/* Add dataset button */}
                   <button 
                     onClick={() => setShowAddDatasetModal(true)}
                     className="flex items-center gap-2 mt-2 text-gray-600 hover:text-gray-800"
+                    aria-label="Add dataset"
                   >
                     <span className="text-xl">+</span> Add dataset
                   </button>
@@ -421,14 +479,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                     value={name} 
                     onChange={(e) => setName(e.target.value)} 
                   />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea 
-                    className='w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-28 resize-none' 
-                    value={description} 
-                    onChange={(e) => setDescription(e.target.value)}
-                  ></textarea>
                 </div>
                 
                 <div className="mt-auto flex justify-end">
