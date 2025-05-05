@@ -41,6 +41,7 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const [newDatasetTitle, setNewDatasetTitle] = useState<string>('');
   const [newDatasetContent, setNewDatasetContent] = useState<string>('');
   const [draggedDatasetId, setDraggedDatasetId] = useState<string | null>(null);
+  const [dragOverDatasetId, setDragOverDatasetId] = useState<string | null>(null);
 
   // Extract description from datasets or return empty string
   const getDescriptionFromDatasets = (datasets: Dataset[]): string => {
@@ -311,59 +312,156 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     }
   };
   
-  const handleDragStart = (datasetId: string) => {
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, datasetId: string) => {
+    console.log('Drag start:', datasetId);
+    // Set the dataTransfer data for Firefox support
+    e.dataTransfer.setData('text/plain', datasetId);
+    // Make the drag image transparent (optional)
+    const dragImage = document.createElement('div');
+    dragImage.style.opacity = '0';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    document.body.removeChild(dragImage);
+    
+    // Set effective allowed effects
+    e.dataTransfer.effectAllowed = 'move';
+    
     setDraggedDatasetId(datasetId);
   };
   
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, datasetId: string) => {
+    e.preventDefault(); // Required to allow dropping
+    e.dataTransfer.dropEffect = 'move';
+    
+    // Set the current dataset being dragged over for visual feedback
+    if (dragOverDatasetId !== datasetId) {
+      setDragOverDatasetId(datasetId);
+    }
   };
   
-  const handleDrop = (e: React.DragEvent, targetDatasetId: string) => {
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (!draggedDatasetId || !selectedNode.current) return;
+    e.currentTarget.classList.add('bg-blue-100', 'bg-opacity-50');
+  };
+  
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('bg-blue-100', 'bg-opacity-50');
+  };
+  
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    setDraggedDatasetId(null);
+    setDragOverDatasetId(null);
+  };
+  
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetDatasetId: string) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('bg-blue-100', 'bg-opacity-50');
+    
+    console.log('Drop event:', { dragged: draggedDatasetId, target: targetDatasetId });
+    
+    if (!draggedDatasetId || !selectedNode.current || draggedDatasetId === targetDatasetId) {
+      return;
+    }
     
     // Find positions
     const datasets = selectedNode.current.getDatasets();
+    console.log('Available datasets:', datasets.map(d => ({ id: d.id, title: d.title })));
+    
     const draggedIndex = datasets.findIndex(d => d.id === draggedDatasetId);
     const targetIndex = datasets.findIndex(d => d.id === targetDatasetId);
     
+    console.log('Reordering from index', draggedIndex, 'to index', targetIndex);
+    
     if (draggedIndex !== -1 && targetIndex !== -1) {
       // Reorder in the node
-      selectedNode.current.reorderDataset(draggedDatasetId, targetIndex);
+      const success = selectedNode.current.reorderDataset(draggedDatasetId, targetIndex);
+      console.log('Reorder success:', success);
       
-      // Update tree data
-      const updatedTreeData = treeNode.toObject();
-      setTreeData(updatedTreeData);
-      
-      // Use the persisted selectedNodeId ref to re-establish the node reference
-      if (selectedNodeId.current) {
-        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
+      if (success) {
+        // Update tree data
+        const updatedTreeData = treeNode.toObject();
+        setTreeData(updatedTreeData);
         
-        if (selectedNode.current) {
-          // Update local datasets state
-          const updatedDatasets = selectedNode.current.getDatasets();
-          setDatasets(updatedDatasets);
+        // Use the persisted selectedNodeId ref to re-establish the node reference
+        if (selectedNodeId.current) {
+          selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
           
-          // Update current node data to reflect the reordered datasets
-          if (currentNodeData) {
-            const updatedNodeData = {
-              ...currentNodeData,
-              datasets: {
-                listType: currentNodeData.datasets.listType,
-                items: updatedDatasets
+          if (selectedNode.current) {
+            // Update local datasets state
+            const updatedDatasets = selectedNode.current.getDatasets();
+            setDatasets(updatedDatasets);
+            
+            // Update current node data to reflect the reordered datasets
+            if (currentNodeData) {
+              const updatedNodeData = {
+                ...currentNodeData,
+                datasets: {
+                  listType: currentNodeData.datasets.listType,
+                  items: updatedDatasets
+                }
+              };
+              setCurrentNodeData(updatedNodeData);
+            }
+          }
+        }
+        
+        // Save changes
+        saveTreeChanges();
+      }
+    } else {
+      // If we can't find the indices, try to get the datasets directly from the currentNodeData
+      if (currentNodeData && currentNodeData.datasets && Array.isArray(currentNodeData.datasets.items)) {
+        const uiDatasets = currentNodeData.datasets.items;
+        console.log('Trying with UI datasets:', uiDatasets.map(d => ({ id: d.id, title: d.title })));
+        
+        const draggedUIIndex = uiDatasets.findIndex(d => d.id === draggedDatasetId);
+        const targetUIIndex = uiDatasets.findIndex(d => d.id === targetDatasetId);
+        
+        console.log('UI indices:', { draggedUIIndex, targetUIIndex });
+        
+        if (draggedUIIndex !== -1 && targetUIIndex !== -1) {
+          // Use the UI indices to reorder in the TreeNode
+          const success = selectedNode.current.reorderDataset(draggedDatasetId, targetUIIndex);
+          console.log('UI reorder success:', success);
+          
+          if (success) {
+            // Update tree data
+            const updatedTreeData = treeNode.toObject();
+            setTreeData(updatedTreeData);
+            
+            // Use the persisted selectedNodeId ref to re-establish the node reference
+            if (selectedNodeId.current) {
+              selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
+              
+              if (selectedNode.current) {
+                // Update local datasets state
+                const updatedDatasets = selectedNode.current.getDatasets();
+                setDatasets(updatedDatasets);
+                
+                // Update current node data to reflect the reordered datasets
+                if (currentNodeData) {
+                  const updatedNodeData = {
+                    ...currentNodeData,
+                    datasets: {
+                      listType: currentNodeData.datasets.listType,
+                      items: updatedDatasets
+                    }
+                  };
+                  setCurrentNodeData(updatedNodeData);
+                }
               }
-            };
-            setCurrentNodeData(updatedNodeData);
+            }
+            
+            // Save changes
+            saveTreeChanges();
           }
         }
       }
-      
-      // Save changes
-      saveTreeChanges();
     }
     
     setDraggedDatasetId(null);
+    setDragOverDatasetId(null);
   };
 
   // Function to render dataset content based on type
@@ -428,12 +526,17 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                   {currentNodeData.datasets.items.map((dataset) => {
                     return (
                     <div 
-                      key={dataset.id} // This is likely undefined
-                      draggable
-                      onDragStart={() => handleDragStart(dataset.id)}
-                      onDragOver={handleDragOver}
+                      key={dataset.id}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, dataset.id)}
+                      onDragOver={(e) => handleDragOver(e, dataset.id)}
                       onDrop={(e) => handleDrop(e, dataset.id)}
-                      className="mb-6 cursor-move"
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragEnd={handleDragEnd}
+                      className={`mb-6 cursor-move rounded border border-transparent transition-colors duration-200 ${
+                        dragOverDatasetId === dataset.id ? 'border-blue-500 bg-blue-100 bg-opacity-50' : ''
+                      } ${draggedDatasetId === dataset.id ? 'opacity-50' : ''}`}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <div className="text-gray-500 select-none">≡</div>
