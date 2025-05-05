@@ -25,6 +25,8 @@ interface TreeContainerProps {
 export function TreeContainer({ treeNode }: TreeContainerProps) {
   const { updateTree } = useWorkspace();
   const selectedNode = useRef<TreeNode | null>(null);
+  // Add a dedicated ref to track the selected node ID across renders
+  const selectedNodeId = useRef<string | null>(null);
 
   const [name, setName] = useState<string>('');
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -60,7 +62,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     if (selectedNode.current) {
       // Check if the selected node is the root node
       if (selectedNode.current === treeNode.root) {
-        console.warn("Cannot remove the root node of the tree");
         // You could show a user-friendly message here
         return;
       }
@@ -114,11 +115,11 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
 
   const handleNodeClick = (nodeData: TreeNodeDatum): void => {
     setIsLoading(true);
-    console.log(nodeData.data.id);
+    // Store the node ID in our persistent ref
+    selectedNodeId.current = nodeData.data.id;
     selectedNode.current = treeNode.recursiveDepthSearch(nodeData.data.id);
+    
     if (selectedNode.current) {
-      console.log(selectedNode.current.data.name);
-      
       // Get datasets
       const nodeDatasets = selectedNode.current.getDatasets();
       setDatasets(nodeDatasets);
@@ -126,7 +127,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       // Setters
       setCurrentNodeData(nodeData.data as TreeNodeViewData);
       setName(selectedNode.current.data.name);
-      // Description setter removed
     }
     setIsLoading(false);
   };
@@ -156,25 +156,31 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     }
     
     if (newDataset) {
-      // Update local datasets state
-      const updatedDatasets = selectedNode.current.getDatasets();
-      setDatasets(updatedDatasets);
-      console.log(newDataset)
-      
       // Update tree data
       const updatedTreeData = treeNode.toObject();
       setTreeData(updatedTreeData);
       
-      // Update current node data to reflect the new dataset
-      if (selectedNode.current && currentNodeData) {
-        const updatedNodeData = {
-          ...currentNodeData,
-          datasets: {
-            listType: currentNodeData.datasets.listType,
-            items: updatedDatasets
+      // Use the persisted selectedNodeId ref to re-establish the node reference
+      if (selectedNodeId.current) {
+        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
+        
+        if (selectedNode.current) {
+          // Update local datasets state
+          const updatedDatasets = selectedNode.current.getDatasets();
+          setDatasets(updatedDatasets);
+          
+          // Update current node data to reflect the new dataset
+          if (currentNodeData) {
+            const updatedNodeData = {
+              ...currentNodeData,
+              datasets: {
+                listType: currentNodeData.datasets.listType,
+                items: updatedDatasets
+              }
+            };
+            setCurrentNodeData(updatedNodeData);
           }
-        };
-        setCurrentNodeData(updatedNodeData);
+        }
       }
       
       // Save changes
@@ -189,34 +195,37 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   
   // Simplified dataset deletion function
   const handleDeleteDataset = (datasetId: string) => {
-    console.log(datasetId);
-    
-    console.log(!selectedNode.current);
-    
     if (!selectedNode.current) return;
     
     // Simply delete the dataset without special handling
     const success = selectedNode.current.deleteDataset(datasetId);
     
     if (success) {
-      // Update local datasets state
-      const updatedDatasets = selectedNode.current.getDatasets();
-      setDatasets(updatedDatasets);
-      
       // Update tree data
       const updatedTreeData = treeNode.toObject();
       setTreeData(updatedTreeData);
       
-      // Update current node data
-      if (currentNodeData) {
-        const updatedNodeData = {
-          ...currentNodeData,
-          datasets: {
-            listType: currentNodeData.datasets.listType,
-            items: updatedDatasets
+      // Use the persisted selectedNodeId ref to re-establish the node reference
+      if (selectedNodeId.current) {
+        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
+        
+        if (selectedNode.current) {
+          // Update local datasets state
+          const updatedDatasets = selectedNode.current.getDatasets();
+          setDatasets(updatedDatasets);
+          
+          // Update current node data
+          if (currentNodeData) {
+            const updatedNodeData = {
+              ...currentNodeData,
+              datasets: {
+                listType: currentNodeData.datasets.listType,
+                items: updatedDatasets
+              }
+            };
+            setCurrentNodeData(updatedNodeData);
           }
-        };
-        setCurrentNodeData(updatedNodeData);
+        }
       }
       
       // Save changes
@@ -245,24 +254,31 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       // Reorder in the node
       selectedNode.current.reorderDataset(draggedDatasetId, targetIndex);
       
-      // Update local datasets state
-      const updatedDatasets = selectedNode.current.getDatasets();
-      setDatasets(updatedDatasets);
-      
       // Update tree data
       const updatedTreeData = treeNode.toObject();
       setTreeData(updatedTreeData);
       
-      // Update current node data to reflect the reordered datasets
-      if (selectedNode.current && currentNodeData) {
-        const updatedNodeData = {
-          ...currentNodeData,
-          datasets: {
-            listType: currentNodeData.datasets.listType,
-            items: updatedDatasets
+      // Use the persisted selectedNodeId ref to re-establish the node reference
+      if (selectedNodeId.current) {
+        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
+        
+        if (selectedNode.current) {
+          // Update local datasets state
+          const updatedDatasets = selectedNode.current.getDatasets();
+          setDatasets(updatedDatasets);
+          
+          // Update current node data to reflect the reordered datasets
+          if (currentNodeData) {
+            const updatedNodeData = {
+              ...currentNodeData,
+              datasets: {
+                listType: currentNodeData.datasets.listType,
+                items: updatedDatasets
+              }
+            };
+            setCurrentNodeData(updatedNodeData);
           }
-        };
-        setCurrentNodeData(updatedNodeData);
+        }
       }
       
       // Save changes
@@ -332,7 +348,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                 {/* Datasets section - scrollable */}
                 <div className="mt-4 flex-grow overflow-y-auto">
                   {currentNodeData.datasets.items.map((dataset) => {
-                    console.log("Dataset in render:", dataset);
                     return (
                     <div 
                       key={dataset.id} // This is likely undefined
@@ -347,7 +362,6 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                         <h3 className="font-medium">{dataset.title}</h3>
                         <button 
                           onClick={() => {
-                            console.log("Delete clicked, dataset:", dataset);
                             handleDeleteDataset(dataset.id);
                           }}
                           className="ml-auto text-gray-500 hover:text-red-500"
