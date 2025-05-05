@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef, RefObject, Dispatch, SetStateAction } from "react";
+import { useState, useEffect, useRef, RefObject, Dispatch, SetStateAction, ChangeEvent } from "react";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { storageService } from "../services/storageService";
+import { DataModal } from "./Modals";
 
 interface SidebarProps {
   initialExpanded?: boolean;
@@ -19,6 +21,9 @@ export default function Sidebar({
   const [sidebarColor, setSidebarColor] = useState(initialColor);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [newWorkspaceTitle, setNewWorkspaceTitle] = useState('');
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const firstButtonRef = useRef<HTMLButtonElement>(null);
 
   // Workspace context
@@ -62,6 +67,103 @@ export default function Sidebar({
     }
   };
 
+  // Export all workspace and tree data as JSON
+  const handleExportData = async () => {
+    try {
+      // Gather all data
+      const workspacesData = await storageService.getWorkspaces();
+      const activeWorkspaceId = await storageService.getActiveWorkspaceId();
+      
+      // Get trees for each workspace
+      const treesData: Record<string, any> = {};
+      for (const workspace of workspacesData) {
+        const trees = await storageService.getTreesForWorkspace(workspace.id);
+        treesData[workspace.id] = trees;
+      }
+      
+      // Create the export object
+      const exportData = {
+        version: '1.0',
+        timestamp: Date.now(),
+        workspaces: workspacesData,
+        activeWorkspaceId,
+        trees: treesData
+      };
+      
+      // Convert to JSON and create download
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tree-app-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      setImportError('Failed to export data. Please try again.');
+    }
+  };
+  
+  // Handle file selection for import
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    setImportError(null);
+    const file = e.target.files?.[0];
+    
+    if (!file) return;
+    
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+      try {
+        const jsonString = event.target?.result as string;
+        const importedData = JSON.parse(jsonString);
+        
+        // Validate imported data structure
+        if (!importedData.workspaces || !Array.isArray(importedData.workspaces)) {
+          setImportError('Invalid data format: Missing workspaces array');
+          return;
+        }
+        
+        // Import workspaces
+        await storageService.saveWorkspaces(importedData.workspaces);
+        
+        // Import active workspace ID if present
+        if (importedData.activeWorkspaceId) {
+          await storageService.setActiveWorkspaceId(importedData.activeWorkspaceId);
+        }
+        
+        // Import trees for each workspace
+        if (importedData.trees) {
+          for (const workspaceId in importedData.trees) {
+            const trees = importedData.trees[workspaceId];
+            if (Array.isArray(trees)) {
+              await storageService.saveTreesForWorkspace(workspaceId, trees);
+            }
+          }
+        }
+        
+        // Refresh the page to reflect the imported data
+        window.location.reload();
+      } catch (error) {
+        console.error('Error importing data:', error);
+        setImportError('Failed to import data. Please check the file format.');
+      }
+    };
+    
+    reader.onerror = () => {
+      setImportError('Error reading file. Please try again.');
+    };
+    
+    reader.readAsText(file);
+  };
+
   return (
     <nav
       id="sidebar-navigation"
@@ -89,6 +191,28 @@ export default function Sidebar({
             </div>
             <span className={`ml-3 text-gray-700 flex-grow text-sm text-nowrap ${!expanded ? "hidden" : ""}`}>
               New workspace
+            </span>
+          </button>
+        </div>
+
+        {/* Data management button */}
+        <div className="flex w-full px-3 items-center">
+          <button
+            className="flex items-center justify-center"
+            aria-label="Manage data"
+            onClick={() => {
+              if (!expanded) setExpanded(true);
+              setIsDataModalOpen(true);
+              setImportError(null);
+            }}
+          >
+            <div className="bg-blue-300 hover:bg-blue-400 rounded-full w-10 h-10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <span className={`ml-3 text-gray-700 flex-grow text-sm text-nowrap ${!expanded ? "hidden" : ""}`}>
+              Manage data
             </span>
           </button>
         </div>
@@ -159,6 +283,18 @@ export default function Sidebar({
           <div className="px-3 text-sm text-gray-500">No workspaces</div>
         )}
       </div>
+    
+      {/* Data Management Modal */}
+      {isDataModalOpen && expanded && (
+        <DataModal
+          isOpen={isDataModalOpen}
+          onClose={() => setIsDataModalOpen(false)}
+          onExportData={handleExportData}
+          onFileSelect={handleFileSelect}
+          importError={importError}
+          fileInputRef={fileInputRef}
+        />
+      )}
     </nav>
   );
 }
