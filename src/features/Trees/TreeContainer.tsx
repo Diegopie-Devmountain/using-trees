@@ -61,6 +61,37 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
     }
   };
 
+  // Ensure node selection is maintained across operations
+  const refreshNodeSelection = () => {
+    if (selectedNodeId.current && selectedNode.current) {
+      // Re-establish node reference from the tree using the ID we saved
+      const node = treeNode.recursiveDepthSearch(selectedNodeId.current);
+      
+      if (node) {
+        // Update the ref with the most current node instance
+        selectedNode.current = node;
+        
+        // Update datasets state
+        const nodeDatasets = node.getDatasets();
+        setDatasets(nodeDatasets);
+        
+        // Update current node data if it exists
+        if (currentNodeData) {
+          setCurrentNodeData({
+            ...currentNodeData,
+            datasets: {
+              listType: currentNodeData.datasets.listType,
+              items: nodeDatasets
+            }
+          });
+        }
+        
+        return true;
+      }
+    }
+    return false;
+  };
+
   const handleRemove = async (preserveChildren: boolean = true): Promise<void> => {
     if (selectedNode.current) {
       // Check if the selected node is the root node
@@ -163,28 +194,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       const updatedTreeData = treeNode.toObject();
       setTreeData(updatedTreeData);
       
-      // Use the persisted selectedNodeId ref to re-establish the node reference
-      if (selectedNodeId.current) {
-        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
-        
-        if (selectedNode.current) {
-          // Update local datasets state
-          const updatedDatasets = selectedNode.current.getDatasets();
-          setDatasets(updatedDatasets);
-          
-          // Update current node data to reflect the new dataset
-          if (currentNodeData) {
-            const updatedNodeData = {
-              ...currentNodeData,
-              datasets: {
-                listType: currentNodeData.datasets.listType,
-                items: updatedDatasets
-              }
-            };
-            setCurrentNodeData(updatedNodeData);
-          }
-        }
-      }
+      // Ensure the node selection is maintained
+      refreshNodeSelection();
       
       // Save changes
       saveTreeChanges();
@@ -240,28 +251,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       const updatedTreeData = treeNode.toObject();
       setTreeData(updatedTreeData);
       
-      // Use the persisted selectedNodeId ref to re-establish the node reference
-      if (selectedNodeId.current) {
-        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
-        
-        if (selectedNode.current) {
-          // Update local datasets state
-          const updatedDatasets = selectedNode.current.getDatasets();
-          setDatasets(updatedDatasets);
-          
-          // Update current node data
-          if (currentNodeData) {
-            const updatedNodeData = {
-              ...currentNodeData,
-              datasets: {
-                listType: currentNodeData.datasets.listType,
-                items: updatedDatasets
-              }
-            };
-            setCurrentNodeData(updatedNodeData);
-          }
-        }
-      }
+      // Ensure the node selection is maintained
+      refreshNodeSelection();
       
       // Save changes
       saveTreeChanges();
@@ -284,28 +275,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       const updatedTreeData = treeNode.toObject();
       setTreeData(updatedTreeData);
       
-      // Use the persisted selectedNodeId ref to re-establish the node reference
-      if (selectedNodeId.current) {
-        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
-        
-        if (selectedNode.current) {
-          // Update local datasets state
-          const updatedDatasets = selectedNode.current.getDatasets();
-          setDatasets(updatedDatasets);
-          
-          // Update current node data
-          if (currentNodeData) {
-            const updatedNodeData = {
-              ...currentNodeData,
-              datasets: {
-                listType: currentNodeData.datasets.listType,
-                items: updatedDatasets
-              }
-            };
-            setCurrentNodeData(updatedNodeData);
-          }
-        }
-      }
+      // Ensure the node selection is maintained
+      refreshNodeSelection();
       
       // Save changes
       saveTreeChanges();
@@ -383,28 +354,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
         const updatedTreeData = treeNode.toObject();
         setTreeData(updatedTreeData);
         
-        // Use the persisted selectedNodeId ref to re-establish the node reference
-        if (selectedNodeId.current) {
-          selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
-          
-          if (selectedNode.current) {
-            // Update local datasets state
-            const updatedDatasets = selectedNode.current.getDatasets();
-            setDatasets(updatedDatasets);
-            
-            // Update current node data to reflect the reordered datasets
-            if (currentNodeData) {
-              const updatedNodeData = {
-                ...currentNodeData,
-                datasets: {
-                  listType: currentNodeData.datasets.listType,
-                  items: updatedDatasets
-                }
-              };
-              setCurrentNodeData(updatedNodeData);
-            }
-          }
-        }
+        // Ensure the node selection is maintained
+        refreshNodeSelection();
         
         // Save changes
         saveTreeChanges();
@@ -430,28 +381,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
             const updatedTreeData = treeNode.toObject();
             setTreeData(updatedTreeData);
             
-            // Use the persisted selectedNodeId ref to re-establish the node reference
-            if (selectedNodeId.current) {
-              selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
-              
-              if (selectedNode.current) {
-                // Update local datasets state
-                const updatedDatasets = selectedNode.current.getDatasets();
-                setDatasets(updatedDatasets);
-                
-                // Update current node data to reflect the reordered datasets
-                if (currentNodeData) {
-                  const updatedNodeData = {
-                    ...currentNodeData,
-                    datasets: {
-                      listType: currentNodeData.datasets.listType,
-                      items: updatedDatasets
-                    }
-                  };
-                  setCurrentNodeData(updatedNodeData);
-                }
-              }
-            }
+            // Ensure the node selection is maintained
+            refreshNodeSelection();
             
             // Save changes
             saveTreeChanges();
@@ -468,7 +399,7 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const renderDatasetContent = (dataset: Dataset) => {
     switch (dataset.type) {
       case 'text':
-        return <p className="ml-8">{(dataset as TextDataset).content}</p>;
+        return <pre className="ml-8">{(dataset as TextDataset).content}</pre>;
       case 'image':
         return (
           <div className="ml-8 mt-2">
@@ -498,8 +429,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   };
 
   return (
-    <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4 h-[calc(100vh-12rem)]'>
-      <div className="w-full lg:w-2/3 border border-gray-300 rounded overflow-hidden" style={{ height: '100%' }}>
+    <section className='flex flex-col lg:flex-row justify-center mx-5 mt-10 space-y-6 lg:space-y-0 lg:space-x-4 min-h-[32rem] lg:h-[calc(100vh-12rem)]'>
+      <div className="w-full lg:w-2/3 border border-gray-300 rounded overflow-hidden h-96 lg:h-full">
         <Tree
           orientation='vertical'
           onNodeClick={handleNodeClick}
@@ -508,7 +439,7 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
           translate={{ x: 250, y: 100 }}
         />
       </div>
-      <aside className='w-full lg:w-1/3 bg-cool-blue p-4 rounded flex flex-col h-full max-h-full overflow-hidden'>
+      <aside className='w-full lg:w-1/3 bg-cool-blue p-4 rounded flex flex-col min-h-[32rem] lg:h-full lg:max-h-full overflow-y-auto lg:overflow-hidden'>
         <h2 className='mb-4 font-mono text-lg font-semibold text-center'>Node Info</h2>
         {isLoading ?
           <center className='my-auto'>
