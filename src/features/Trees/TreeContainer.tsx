@@ -35,6 +35,8 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isEdit, setIsEdit] = useState<boolean>(false);
   const [showAddDatasetModal, setShowAddDatasetModal] = useState<boolean>(false);
+  const [showEditDatasetModal, setShowEditDatasetModal] = useState<boolean>(false);
+  const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
   const [newDatasetType, setNewDatasetType] = useState<'text' | 'image' | 'url'>('text');
   const [newDatasetTitle, setNewDatasetTitle] = useState<string>('');
   const [newDatasetContent, setNewDatasetContent] = useState<string>('');
@@ -190,6 +192,82 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
       setNewDatasetTitle('');
       setNewDatasetContent('');
       setShowAddDatasetModal(false);
+    }
+  };
+  
+  // Edit dataset function
+  const handleEditDataset = (dataset: Dataset) => {
+    setEditingDataset(dataset);
+    setNewDatasetType(dataset.type as 'text' | 'image' | 'url');
+    setNewDatasetTitle(dataset.title);
+    
+    // Set content based on dataset type
+    if (dataset.type === 'text') {
+      setNewDatasetContent((dataset as TextDataset).content);
+    } else if (dataset.type === 'image') {
+      setNewDatasetContent((dataset as ImageDataset).url);
+    } else if (dataset.type === 'url') {
+      setNewDatasetContent((dataset as UrlDataset).url);
+    }
+    
+    setShowEditDatasetModal(true);
+  };
+  
+  // Save edited dataset
+  const handleSaveEditedDataset = () => {
+    if (!selectedNode.current || !editingDataset) return;
+    
+    // Create updated dataset object
+    const updates: Partial<Dataset> = {
+      title: newDatasetTitle,
+    };
+    
+    // Add type-specific properties
+    if (editingDataset.type === 'text') {
+      (updates as Partial<TextDataset>).content = newDatasetContent;
+    } else if (editingDataset.type === 'image') {
+      (updates as Partial<ImageDataset>).url = newDatasetContent;
+    } else if (editingDataset.type === 'url') {
+      (updates as Partial<UrlDataset>).url = newDatasetContent;
+    }
+    
+    // Update the dataset in the node
+    const success = selectedNode.current.updateDataset(editingDataset.id, updates);
+    
+    if (success) {
+      // Update tree data
+      const updatedTreeData = treeNode.toObject();
+      setTreeData(updatedTreeData);
+      
+      // Use the persisted selectedNodeId ref to re-establish the node reference
+      if (selectedNodeId.current) {
+        selectedNode.current = treeNode.recursiveDepthSearch(selectedNodeId.current);
+        
+        if (selectedNode.current) {
+          // Update local datasets state
+          const updatedDatasets = selectedNode.current.getDatasets();
+          setDatasets(updatedDatasets);
+          
+          // Update current node data
+          if (currentNodeData) {
+            const updatedNodeData = {
+              ...currentNodeData,
+              datasets: {
+                listType: currentNodeData.datasets.listType,
+                items: updatedDatasets
+              }
+            };
+            setCurrentNodeData(updatedNodeData);
+          }
+        }
+      }
+      
+      // Save changes
+      saveTreeChanges();
+      
+      // Reset form and close modal
+      setEditingDataset(null);
+      setShowEditDatasetModal(false);
     }
   };
   
@@ -360,15 +438,26 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                       <div className="flex items-center gap-2 mb-1">
                         <div className="text-gray-500 select-none">≡</div>
                         <h3 className="font-medium">{dataset.title}</h3>
-                        <button 
-                          onClick={() => {
-                            handleDeleteDataset(dataset.id);
-                          }}
-                          className="ml-auto text-gray-500 hover:text-red-500"
-                          aria-label='Delete dataset'
-                        >
-                          ×
-                        </button>
+                        <div className="ml-auto flex items-center">
+                          <button 
+                            onClick={() => handleEditDataset(dataset)}
+                            className="text-gray-500 hover:text-blue-500 mr-2"
+                            aria-label='Edit dataset'
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => {
+                              handleDeleteDataset(dataset.id);
+                            }}
+                            className="text-gray-500 hover:text-red-500"
+                            aria-label='Delete dataset'
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                       {renderDatasetContent(dataset)}
                     </div>
@@ -448,6 +537,64 @@ export function TreeContainer({ treeNode }: TreeContainerProps) {
                             className="px-4 py-2 bg-blue-500 text-white rounded-md"
                           >
                             Add
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Edit dataset modal */}
+                  {showEditDatasetModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+                      <div className="bg-white p-6 rounded-lg w-96 max-w-full">
+                        <h3 className="text-lg font-medium mb-4">Edit Dataset</h3>
+                        
+                        <div className="mb-4">
+                          <label className="block mb-2 text-sm">Title</label>
+                          <input
+                            type="text"
+                            value={newDatasetTitle}
+                            onChange={(e) => setNewDatasetTitle(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-md"
+                            placeholder="Title"
+                          />
+                        </div>
+                        
+                        <div className="mb-4">
+                          <label className="block mb-2 text-sm">
+                            {newDatasetType === 'text' ? 'Content' : 
+                             newDatasetType === 'image' ? 'Image URL' : 'URL'}
+                          </label>
+                          {newDatasetType === 'text' ? (
+                            <textarea
+                              value={newDatasetContent}
+                              onChange={(e) => setNewDatasetContent(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-md h-24"
+                              placeholder="Enter text content"
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={newDatasetContent}
+                              onChange={(e) => setNewDatasetContent(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-md"
+                              placeholder={newDatasetType === 'image' ? 'Enter image URL' : 'Enter URL'}
+                            />
+                          )}
+                        </div>
+                        
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setShowEditDatasetModal(false)}
+                            className="px-4 py-2 border rounded-md"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleSaveEditedDataset}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-md"
+                          >
+                            Save Changes
                           </button>
                         </div>
                       </div>
